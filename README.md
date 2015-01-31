@@ -47,7 +47,33 @@ After you're done blimping and shut down the guest, re-enable Bluetooth on your 
     $ sudo launchctl load /System/Library/LaunchDaemons/com.apple.blued.plist
     $ sudo kextload -b com.apple.iokit.IOBluetoothSerialManager
     $ sudo kextload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
+    
+Or copy this blimp script to `/usr/local/bin/blimp`, make sure to `chmod +x /usr/local/bin/blimp`. Then you can run `blimp up` and `blimp down` commands from anywhere to free up or recover the Bluetooth control from MacOS.
 
+    #!/bin/bash
+
+	_usage(){
+	    grep "^[^_].\+(){$" $0 | while read line; do
+	      echo "  $0 $line" | sed "s/().*//g";
+	    done;
+	    echo "";
+	}
+
+	up(){
+	        sudo launchctl unload /System/Library/LaunchDaemons/com.apple.blued.plist
+	        sudo kextunload -b com.apple.iokit.IOBluetoothSerialManager
+	        sudo kextunload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
+	}
+
+	down(){
+	        sudo launchctl load /System/Library/LaunchDaemons/com.apple.blued.plist
+	        sudo kextload -b com.apple.iokit.IOBluetoothSerialManager
+	        sudo kextload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
+	}
+
+	# run arguments as commands if any, or show Usage
+	"$@"
+	if [ ${#1} == 0 ]; then echo "$CMDS" | echo "Usage: "; _usage; fi
 
 Remote-Control Software
 =======================
