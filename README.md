@@ -19,7 +19,7 @@ https://www.virtualbox.org/wiki/Downloads
 Get Ubuntu Image
 ================
 
-Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides hcitool and gatttool. If you can get that thing to boot you're good.
+Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides hcitool and gatttool. If you can get that thing to boot you're good. Ctrl+Opt+T will give you a terminal.
 
 Bluetooth Hardware
 ==================
