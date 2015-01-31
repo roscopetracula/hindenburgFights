@@ -19,31 +19,31 @@ https://www.virtualbox.org/wiki/Downloads
 Get Ubuntu Image
 ================
 
-Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using bluez, which provides hcitool and gatttool. If you can get that thing to boot you're good.
+Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides hcitool and gatttool. If you can get that thing to boot you're good.
 
 Bluetooth Hardware
 ==================
 
 On your Mac host (to free up the Bluetooth hardware so the guest can use it):
 
-  $ sudo launchctl unload /System/Library/LaunchDaemons/com.apple.blued.plist
-  $ sudo kextunload -b com.apple.iokit.IOBluetoothSerialManager
-  $ sudo kextunload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
+    $ sudo launchctl unload /System/Library/LaunchDaemons/com.apple.blued.plist
+    $ sudo kextunload -b com.apple.iokit.IOBluetoothSerialManager
+    $ sudo kextunload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
 
 Then you can click the little icon at the bottom of the Virtualbox window and choose
 Apple, Inc. Bluetooth USB Host Controller. Now the guest can use the hardware.
 
 In the Ubuntu guest:
 
-  $ sudo hcitool lescan
+    $ sudo hcitool lescan
 
 Take note of the address of your RFduino.
 
 After you're done blimping and shut down the guest, re-enable Bluetooth on your Mac:
 
-  $ sudo launchctl load /System/Library/LaunchDaemons/com.apple.blued.plist
-  $ sudo kextload -b com.apple.iokit.IOBluetoothSerialManager
-  $ sudo kextload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
+    $ sudo launchctl load /System/Library/LaunchDaemons/com.apple.blued.plist
+    $ sudo kextload -b com.apple.iokit.IOBluetoothSerialManager
+    $ sudo kextload -b com.apple.iokit.BroadcomBluetoothHostControllerUSBTransport
 
 
 Remote-Control Software
