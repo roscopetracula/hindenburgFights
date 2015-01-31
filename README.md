@@ -19,9 +19,9 @@ https://www.virtualbox.org/wiki/Downloads
 Get Ubuntu Image
 ================
 
-Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides hcitool and gatttool. If you can get that thing to boot you're good. The password for the account is `boom`.
+Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides `hcitool` and `gatttool`. If you can get that thing to boot you're good. The password for the account is `boom`.
 
-Ctrl+Opt+T will give you a terminal. `hindenbergFights/` has this repo checked out already.
+Ctrl+Opt+T will give you a terminal. `hindenbergFights/` has this repo checked out already, just `git pull` to update.
 
 
 Bluetooth Hardware
@@ -56,4 +56,4 @@ There's software that works on linux for connecting to the RFduino over BTLE and
 
     $ sudo python blimpControl_kbd.py
 
-And/or replace that with something that will send the three byte codes that the RFduino is expecting. I haven't found any good library that exposes the OS X bluetooth LE stuff to a scripting language. So I don't think we are going to get this running on OS X in python but here's what I did.
+And/or replace that with something that will send the three byte codes that the RFduino is expecting.
