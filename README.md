@@ -11,6 +11,8 @@ Compile to Arduino
 ==================
 Open `rfduino_bleMotorControl/rfduino_bleMotorControl.ino` in the Arduino environment. Choose "Tools > Board > RFDuino" and then "Sketch > Verify/Compile". If no errors, you can load to the board by doing "File > Upload". Be sure you've selected the correct port from "Tools > Port". (Mine was like /dev/cu.usbserial-DC008W6W or something) Once you see "SUCCESS !" you can take the board off the programmer and hook it up to the battery pack. It will automatically run our code when it boots.
 
+Note that the development board motor controller uses pins 2 and 3, whereas the production board uses pins 5 and 6. If you're using a development board, change line 29 to: `Wire.beginOnPins(2,3);`
+
 Install Virtualbox
 ==================
 
