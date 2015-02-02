@@ -15,29 +15,34 @@ DVR8830_test_thomasOlson
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
-int Vset;
-int timeout=1000;
+
+const int Vset = 0x3F;
+const int timeout = 1000;
+const int motors [3] = { 
+  MOTOR1, 
+  MOTOR2, 
+  MOTOR3 
+};
+
 int lastPing;
 int thisLoopMillis=0;
 bool timeoutPossible=0;
 int faultPin = 4;
-int motors [3] = { MOTOR1, MOTOR2, MOTOR3 };
 
 void setup(){
+  
+  Serial.begin(9600);
+  Serial.println("\nDVR8830 Motor Controller");
+  
   pinMode(faultPin, INPUT);
   Wire.beginOnPins(5,6); //SCL pin, SDA pin //5,6 for slimstack board v1
   delay(20);
-  Serial.begin(9600);
-  
-  Serial.println("\nDVR8830 Motor Controller");
   
   RFduinoBLE.deviceName = "RFduino Blimp"; //Sets the device name  
   //RFduinoBLE.advertisementData = "temp"; //data in the advertisement  
   RFduinoBLE.begin();  // start the BLE stack
   delay(25);
   
-  //Wire.begin();
-  Vset = 0x3F;
   lastPing = millis();
  
   Serial.println("Test motors"); 
@@ -47,9 +52,9 @@ void setup(){
   
   // startup check: forward, brake, reverse, brake
   char sequences [4] = { 'f', 'b', 'r', 'b' };
-  for ( int j=sizeof(motors); j>=0; --j ){
+  for ( int j=2; j>=0; --j ){
     // not as efficient but more intuitive to keep it in the right order
-    for ( int i=0; i<sizeof(sequences); i++ ){
+    for ( int i=0; i<4; i++ ){
       switch ( sequences[i] ){
         case 'f': setForward(motors[j]);
           break;
@@ -59,7 +64,7 @@ void setup(){
           break;
       }
       // allow the motors time to spin up / down
-      delay( 100 );
+      delay( 200 );
     }
   }
 
@@ -69,30 +74,39 @@ void setup(){
 void loop(){
   // get the current time
   thisLoopMillis=millis();
+  //Serial.print("looping at ");
+  //Serial.println(thisLoopMillis);
   
   if ( digitalRead(faultPin)==LOW ){
-    Serial.println(" ----FAULT----  ");
+    Serial.println("----FAULT----");
     // Clear faults on all motors
     runCommandOnAll('c');
   }
   
   // Brake if there is no communication for > 1s (timeout)
   if ( (thisLoopMillis-lastPing)>timeout && timeoutPossible==1 ){
-    Serial.println(" ----TIMED OUT----  ");
-    Serial.println("lastPing timeout:  "+lastPing);
-    Serial.println("thisLoopMillis:    "+thisLoopMillis);
+    Serial.println("----TIMED OUT----");
+    Serial.print("    lastPing timeout: ");
+    Serial.println(lastPing);
+    Serial.print("    thisLoopMillis:   ");
+    Serial.println(thisLoopMillis);
+    
     // Brake all motors
     runCommandOnAll('b');
-    //can only timeout once
-    timeoutPossible=0; 
+    
+    // can only timeout once
+    timeoutPossible=0;
+    
+    // switch to lower power mode
+    //RFduino_ULPDelay(INFINITE);
   }
-
-  // switch to lower power mode
-  RFduino_ULPDelay(INFINITE);
+  
+  // start checking for a timeout  
+  RFduino_ULPDelay(MILLISECONDS(50));
 }
 
 void runCommandOnAll( char command ){
-  for ( int j=sizeof(motors); j>=0; --j ){
+  for ( int j=2; j>=0; --j ){
     switch (command){
       case 'f': setForward(motors[j]); break;
       case 'r': setReverse(motors[j]); break;
@@ -105,7 +119,6 @@ void runCommandOnAll( char command ){
 void RFduinoBLE_onReceive(char *data, int len) {
   // Track the last ping every time we recieve data to detect timeouts
   lastPing=millis();
-  Serial.println("lastPing set:    "+lastPing);
   
   // Clear faults on all motors
   runCommandOnAll('c');
@@ -120,20 +133,25 @@ void RFduinoBLE_onReceive(char *data, int len) {
         case 0x02: 
           setReverse(motors[i]); break;
         default:
-          setBrake(motors[i]);
+          setBrake(motors[i]); break;
       }
     }
   }
-  timeoutPossible=1; // now that we've recieved data it's possible to timeout.
+  
+  // now that we've recieved data it's possible to timeout in loop()
+  timeoutPossible=1; 
 }
 
 void RFduinoBLE_onConnect() {
+  Serial.println("RFduinoBLE_onConnect");
+  
   runCommandOnAll('f');
   delay(200);
   runCommandOnAll('b');
 }
 
 void RFduinoBLE_onDisconnect() {
+  Serial.println("RFduinoBLE_onDisconnect");
   runCommandOnAll('r');
   delay(200);
   runCommandOnAll('b');
@@ -172,15 +190,14 @@ void getFault(int thisMotor){
   }
 }
 
-void getControl(int thisMotor){
+void getControl(int motor){
   uint8_t RegisterControl;
   
-  Wire.beginTransmission(thisMotor);
+  Wire.beginTransmission(motor);
   Wire.write(CONTROL);
-  Serial.print("getControl: ");
-  Serial.println(Wire.endTransmission());
+  logMotorControl("getControl", motor, Wire.endTransmission());
   
-  Wire.requestFrom(thisMotor,1);
+  Wire.requestFrom(motor,1);
   while(Wire.available()){
     RegisterControl = Wire.read();
     Serial.print("RegisterControl: ");
@@ -188,50 +205,45 @@ void getControl(int thisMotor){
   }
 }
 
-void setControl(byte thisMotor, uint8_t control){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(CONTROL);
-  Wire.write(control);
-  Serial.print("setControl ");
-  Serial.println(Wire.endTransmission());
+void setControl(byte motor, uint8_t control){
+  doMotorControl("setControl", motor, CONTROL, control);
 }
   
-void clearFault(byte thisMotor){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(FAULT);
-  Wire.write(0x80); // CLEAR bit clears faults
-  Serial.print("clear fault ");
-  Serial.println(Wire.endTransmission());
+void clearFault(byte motor){
+  doMotorControl("clearFault", motor, FAULT, 0x80); // CLEAR bit clears faults
+}
+void setCoast(byte motor){
+  doMotorControl("setCoast", motor, CONTROL, 0x00);
 }
 
-void setBrake(byte thisMotor){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(CONTROL);
-  Wire.write((Vset << 2) | 0x03); 
-  Serial.print("brake ");
-  Serial.println(Wire.endTransmission());
+void setForward(byte motor){
+  doMotorControl("setForward", motor, CONTROL, 0x01);
 }
 
-void setCoast(byte thisMotor){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(CONTROL);
-  Wire.write((Vset << 2) | 0x00); 
-  Serial.print("coast ");
-  Serial.println(Wire.endTransmission());
+void setReverse(byte motor){
+  doMotorControl("setReverse", motor, CONTROL, 0x02);
 }
 
-void setForward(byte thisMotor){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(CONTROL);
-  Wire.write((Vset << 2) | 0x01); 
-  Serial.print("forward ");
-  Serial.println(Wire.endTransmission());
+void setBrake(byte motor){
+  doMotorControl("setBrake", motor, CONTROL, 0x03);
 }
 
-void setReverse(byte thisMotor){
-  Wire.beginTransmission(thisMotor);
-  Wire.write(CONTROL);
-  Wire.write((Vset << 2) | 0x02); 
-  Serial.print("reverse ");
-  Serial.println(Wire.endTransmission());
+void doMotorControl(String action, byte motor, byte type, uint8_t arg){
+  Wire.beginTransmission(motor);
+  Wire.write(type); 
+  Wire.write((Vset << 2) | arg); 
+  logMotorControl(action, motor, Wire.endTransmission());
+}  
+
+void logMotorControl(String action, byte motor, int wireStatus){
+  switch(motor){
+    case 97: Serial.print("Back "); break;
+    case 100: Serial.print("Front "); break;
+    case 103: Serial.print("Bottom "); break;
+  }
+  Serial.print(action);
+  Serial.print('(');
+  Serial.print(motor);
+  Serial.print(") wire status: ");
+  Serial.println(wireStatus);
 }
