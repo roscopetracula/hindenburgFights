@@ -30,7 +30,7 @@ void setup()
   delay(20);
   Serial.begin(9600);
   Serial.println("\nDVR8830 Motor Controller");
-  RFduinoBLE.deviceName = "RFduino Blimp"; //Sets the device name  
+  RFduinoBLE.deviceName = "RFduino Blimp - tiny"; //Sets the device name  
 //  RFduinoBLE.advertisementData = "temp"; //data in the advertisement  
   RFduinoBLE.begin();  // start the BLE stack
 //  Wire.begin();
