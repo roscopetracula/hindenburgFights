@@ -146,9 +146,9 @@ windowSurface.fill(BLACK)
 imuDuino="FD:B3:BC:98:29:EF"
 rfduino= "C9:44:30:80:0D:1A"
 rfduino2="D2:9F:90:14:98:4C"
-rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
+# rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
 
-b=bleBot(rfduinoBlimpTiny1)
+b=bleBot(rfduino2)
 conn = b.connect()
 # b.char_write_cmd("414345")
 # time.sleep(.5)
