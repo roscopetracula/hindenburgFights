@@ -28,8 +28,7 @@ class bleBot:
         # for RFduino:  char-write-cmd 0x0011 41424344; handle-> '11'
         self.handle = '0011' #!! this is the TX service on the nRF8001 adafruit breakout with callbackEcho sketch
 
-        self.motorState = ["00", "00", "00"]
-        self.lastTxMotorState = ["00", "00", "00"]
+        self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTx = 0
 
 
@@ -142,31 +141,26 @@ class bleBot:
         self.connect()
 
     def transmitState(self):
-        # if self.motorState != self.lastTxMotorState:
-            #only send the motorState if it's different than it was on the last TX, or...
-        self.char_write_cmd("".join(self.motorState))
+        self.char_write_cmd("".join(["".join(tup) for tup in self.motorState]))
         self.lastTx = time.time()
-        self.lastTxMotorState = self.motorState
 
     def reTxState(self):
-        if time.time() - self.lastTx > reTxTimeout and any([byte!="00" for byte in self.motorState]):
+        if time.time() - self.lastTx > reTxTimeout and any([byte[0]!="00" for byte in self.motorState]):
             #...send the motorState if it hasn't been sent in a while and it's non-zero.
-            self.char_write_cmd("".join(self.motorState))
-            self.lastTx = time.time()
-            self.lastTxMotorState = self.motorState
+            self.transmitState()
 
-    def txStateIfChanged(self):
-        if self.motorState != self.lastTxMotorState:
-            #only send the motorState if it's different than it was on the last tx
-            self.char_write_cmd("".join(self.motorState))
-            self.lastTx = time.time()
-            self.lastTxMotorState = self.motorState
-        #     print "txStateIfChanged"
-        # else:
-        #     print "NOT txStateIfChanged"
 
-    def setMotorState(self, motorCode, motorIndex):
-        self.motorState[motorIndex] = motorCode
+    def setMotorState(self, motorIndex, motorDirection, motorSpeed):
+        self.motorState[motorIndex] = (motorDirection,motorSpeed)
+
+
+
+def numToMotorCode(x):
+    # x is a number in [0,1] that we map to the valid range of DRV8830 hex codes: 0x06 to 0x3F
+    # we only retain the last two characters for transmission, and pad with a 0 if need be
+    hexStr = hex(int(round(0x06 + x*(0x3f-0x06))))[-2:]
+    hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
+    return hexStr
 
 
 
@@ -191,13 +185,6 @@ class KbdCtrl(Controller):
         self.handledKeys = self.keyMap.values()
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
-        # if keyAction == "quit" and evt.type==KEYDOWN:
-        #     self.quit()
-        #     return
-        # elif keyAction == "reconnect" and evt.type==KEYDOWN:
-        #     self.reconnect()
-        #     return
-        # else:
         if keyAction == "f":
             motorIndex = self.axisToMotorMap["f_b"][0]
             motorDirection = self.axisToMotorMap["f_b"][1]
@@ -218,11 +205,13 @@ class KbdCtrl(Controller):
             motorDirection = not self.axisToMotorMap["u_d"][1]
 
         if evt.type==KEYUP:
-            self.bleBlimp.setMotorState("00",motorIndex)
+            motorDirection = "00"
         elif motorDirection:
-            self.bleBlimp.setMotorState("01",motorIndex)
+            motorDirection = "01"
         else:
-            self.bleBlimp.setMotorState("02",motorIndex)
+            motorDirection = "02"
+
+        self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1)) 
         self.bleBlimp.transmitState()
 
 
@@ -257,7 +246,6 @@ class XboxCtrl(Controller):
             self.bleBlimp.transmitState()
             self.axisState =thisAxisState
             print "xbox tx"
-            # self.bleBlimp.txStateIfChanged()
 
 
 
@@ -277,8 +265,8 @@ rfduino = "C9:44:30:80:0D:1A"
 rfduinoBlimpMini1 = "D2:9F:90:14:98:4C"
 rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
 
-b1 = bleBot(rfduinoBlimpTiny1)
-b2 = bleBot(rfduinoBlimpMini1)
+b1 = bleBot(rfduinoBlimpMini1)
+b2 = bleBot(rfduinoBlimpTiny1)
 b1.connect()
 b2.connect()
 
