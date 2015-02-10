@@ -103,7 +103,7 @@ class bleBot:
         try:
             rnb = self.con.read_nonblocking(2048,0) #flush the read pipe!! SUPER IMPORTANT
             print "----RNB----\n", rnb, "\n-----END RNB-----"
-            if "Command Failed: Disconnected" in rnb:
+            if "Command Failed:" in rnb:
                 print "attempt reconnect..."
                 # FIXME this is where the reconnect should happen
                 # should it just be: self.connect() ??
@@ -187,41 +187,44 @@ class KbdCtrl(Controller):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
         if keyAction == "f":
             motorIndex = self.axisToMotorMap["f_b"][0]
-            motorDirection = self.axisToMotorMap["f_b"][1]
+            motorPolarity = self.axisToMotorMap["f_b"][1]
         elif keyAction == "b":
             motorIndex = self.axisToMotorMap["f_b"][0]
-            motorDirection = not self.axisToMotorMap["f_b"][1]
+            motorPolarity = not self.axisToMotorMap["f_b"][1]
         elif keyAction == "l":
             motorIndex = self.axisToMotorMap["r_l"][0]
-            motorDirection = self.axisToMotorMap["r_l"][1]
+            motorPolarity = self.axisToMotorMap["r_l"][1]
         elif keyAction == "r":
             motorIndex = self.axisToMotorMap["r_l"][0]
-            motorDirection = not self.axisToMotorMap["r_l"][1]
+            motorPolarity = not self.axisToMotorMap["r_l"][1]
         elif keyAction == "u":
             motorIndex = self.axisToMotorMap["u_d"][0]
-            motorDirection = self.axisToMotorMap["u_d"][1]
+            motorPolarity = self.axisToMotorMap["u_d"][1]
         elif keyAction == "d":
             motorIndex = self.axisToMotorMap["u_d"][0]
-            motorDirection = not self.axisToMotorMap["u_d"][1]
+            motorPolarity = not self.axisToMotorMap["u_d"][1]
 
         if evt.type==KEYUP:
-            motorDirection = "00"
-        elif motorDirection:
+            motorPolarity = "00"
+        elif motorPolarity:
             motorDirection = "01"
         else:
             motorDirection = "02"
 
-        self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1)) 
+        self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
         self.bleBlimp.transmitState()
 
 
 
 class XboxCtrl(Controller):
-    def __init__(self,bleBlimp,axisMap,joystick):
+    def __init__(self,bleBlimp,axisMap,joystick,deadzone=.1):
         Controller.__init__(self,bleBlimp)
         self.axisMap = axisMap
         self.joystick = joystick
         self.axisState = [False,False,False] #used to track changes in state; send only upon state change.
+        self.deadzone = deadzone
+    def undeadzone(self,x):
+        return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
     def handleXbox(self):
         thisAxisState = [False,False,False]
         self.joystick.init()
@@ -230,22 +233,24 @@ class XboxCtrl(Controller):
             # axis[1][1]  --xbox axis
             # axis[1][2]  --axis direction multiplier
             axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
-            if axisVal > 0.5:
-                motorCode = "01"
-                # print "F motor", axisVal
-                thisAxisState[axis[1][0]]=True
-            elif axisVal < -0.5:
-                motorCode = "02"
-                # print "R motor", axisVal
-                thisAxisState[axis[1][0]]=True
+            if axisVal > self.deadzone:
+                motorDirection = "01"
+                # motorSpeed = numToMotorCode(self.undeadzone(axisVal))
+                # thisAxisState[axis[1][0]]=True
+            elif axisVal < -self.deadzone:
+                motorDirection = "02"
             else:
-                motorCode = "00"
-                # print "stop motor"
-            self.bleBlimp.setMotorState(motorCode,axis[1][0])
+                motorDirection = "00"
+                # motorSpeed = numToMotorCode(1)
+
+            motorSpeed = numToMotorCode(self.undeadzone(axisVal))
+            thisAxisState[axis[1][0]]=True
+            # self.bleBlimp.setMotorState(motorCode,)
+            self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
         if thisAxisState != self.axisState:
             self.bleBlimp.transmitState()
-            self.axisState =thisAxisState
-            print "xbox tx"
+            self.axisState = thisAxisState
+            # print "xbox tx"
 
 
 
@@ -265,22 +270,24 @@ rfduino = "C9:44:30:80:0D:1A"
 rfduinoBlimpMini1 = "D2:9F:90:14:98:4C"
 rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
 
-b1 = bleBot(rfduinoBlimpMini1)
-b2 = bleBot(rfduinoBlimpTiny1)
-b1.connect()
+# b1 = bleBot(rfduinoBlimpTiny1)
+b2 = bleBot(rfduinoBlimpMini1)
+# b1.connect()
 b2.connect()
 
-blimps=[b1,b2]
+blimps=[b2]
 
 # the tuples for the axisToMotorMap give the axis and the direction of the motor.
 # the second entry in the tuple is a boolean flag saying whether the motor defaults to cw or ccw.
 keymap1 = {"f":pygame.K_UP, "b": pygame.K_DOWN, "r" :pygame.K_RIGHT, "l":pygame.K_LEFT, "u":pygame.K_o, "d": pygame.K_l}
-kbd1 = KbdCtrl(b1, {"f_b":(2,False), "r_l":(1,True), "u_d":(0,False)}, keymap1)
-kbds = [kbd1]
+# kbd1 = KbdCtrl(b1, {"f_b":(2,False), "r_l":(1,True), "u_d":(0,False)}, keymap1)
+# kbds = [kbd1]
+kbds=[]
 
 # keymap2 = {"f":pygame.K_d, "b": pygame.K_c, "r" :pygame.K_v, "l":pygame.K_x, "u":pygame.K_a, "d": pygame.K_z, "quit":pygame.K_q, "reconnect":pygame.K_r}
 # kbd2 = KbdCtrl(b2, {"f_b":(0,True), "r_l":(1,True), "u_d":(2,False)}, keymap2)
 # kbds = [kbd1,kbd2]
+
 
 
 
@@ -313,7 +320,7 @@ while True:
             for blimp in blimps:
                 blimp.reconnect()
 
-        if (event.type == KEYDOWN or event.type == KEYUP):
+        if (event.type == KEYDOWN or event.type == KEYUP) and kbds:
             for kbd in kbds:
                 if event.key in kbd.handledKeys:
                     kbd.handleEvt(event)
