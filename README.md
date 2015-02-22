@@ -95,7 +95,8 @@ sudo apt-get remove pygame
 
 ### install dependencies.
 
-at least these, but maybe a couple others if the build setp below fails
+at least these, but maybe a couple others if the build step below fails:
+
 sudo apt-get install mercurial python-dev python-numpy libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev libsmpeg-dev libsdl1.2-dev  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
  
 ### Grab Pygame source
