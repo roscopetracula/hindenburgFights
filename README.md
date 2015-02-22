@@ -90,16 +90,18 @@ Compiling Pygame
 ================
 The version of pygame that is available from the repos has some annoying printfs that will get in the way of using the terminal for debugging the xbox controller. To get around this, you can remove the repo version and compile from the latest source
 
-#remove repo version, something like:
+### remove repo version, something like:
 sudo apt-get remove pygame
 
-#install dependencies. at least these, but maybe a couple others if the build setp below fails
+### install dependencies.
+
+at least these, but maybe a couple others if the build setp below fails
 sudo apt-get install mercurial python-dev python-numpy libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev libsmpeg-dev libsdl1.2-dev  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
  
-# Grab Pygame source
+### Grab Pygame source
 hg clone https://bitbucket.org/pygame/pygame
  
-# Finally build and install
+### Finally build and install
 cd pygame
 python setup.py build
 sudo python setup.py install
