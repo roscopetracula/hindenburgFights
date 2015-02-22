@@ -98,11 +98,11 @@ class bleBot:
         # for IMUduino: char-write-cmd 0x000b 41424344
         # for RFduino: char-write-cmd 0x0011 41424344555555
         cmd = 'char-write-cmd 0x%s %s' % (self.handle, value)
-        #print self.ble_adr, cmd
+        print self.ble_adr, cmd
         self.con.sendline( cmd )
         try:
             rnb = self.con.read_nonblocking(2048,0) #flush the read pipe!! SUPER IMPORTANT
-            print "----RNB----\n", rnb, "\n-----END RNB-----"
+            # print "----RNB----\n", rnb, "\n-----END RNB-----"
             if "Command Failed:" in rnb:
                 print "attempt reconnect..."
                 # FIXME this is where the reconnect should happen
@@ -110,7 +110,7 @@ class bleBot:
                 self.connect()
         except:
             print "could not 'flush read pipe'"
-        print 'After sending command, before: ', self.con.before, 'after :', self.con.after
+        # print 'After sending command, before: ', self.con.before, 'after :', self.con.after
         return
 
     def cleanup( self ):
@@ -217,16 +217,16 @@ class KbdCtrl(Controller):
 
 
 class XboxCtrl(Controller):
-    def __init__(self,bleBlimp,axisMap,joystick,deadzone=.1):
+    def __init__(self,bleBlimp,axisMap,joystick,deadzone=0.3):
         Controller.__init__(self,bleBlimp)
         self.axisMap = axisMap
         self.joystick = joystick
-        self.axisState = [False,False,False] #used to track changes in state; send only upon state change.
+        self.axisState = ["00","00","00"] #used to track changes in state; send only upon state change.
         self.deadzone = deadzone
     def undeadzone(self,x):
         return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
     def handleXbox(self):
-        thisAxisState = [False,False,False]
+        thisAxisState = ["00","00","00"]
         self.joystick.init()
         for axis in self.axisMap.items():
             # axis[1][0]  --motorIndex
@@ -235,19 +235,23 @@ class XboxCtrl(Controller):
             axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
             if axisVal > self.deadzone:
                 motorDirection = "01"
-                # motorSpeed = numToMotorCode(self.undeadzone(axisVal))
-                # thisAxisState[axis[1][0]]=True
+                motorSpeed = numToMotorCode(self.undeadzone(axisVal))
+                # print "a",thisAxisState,self.deadzone
             elif axisVal < -self.deadzone:
                 motorDirection = "02"
+                motorSpeed = numToMotorCode(self.undeadzone(axisVal))
+                # print "b",thisAxisState,self.deadzone
             else:
                 motorDirection = "00"
-                # motorSpeed = numToMotorCode(1)
-
-            motorSpeed = numToMotorCode(self.undeadzone(axisVal))
-            thisAxisState[axis[1][0]]=True
+                motorSpeed = "00"
+                # print "c",thisAxisState,self.deadzone
+            
+            thisAxisState[axis[1][0]]=motorSpeed
             # self.bleBlimp.setMotorState(motorCode,)
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
+        
         if thisAxisState != self.axisState:
+            print thisAxisState, self.bleBlimp.motorState,axisVal
             self.bleBlimp.transmitState()
             self.axisState = thisAxisState
             # print "xbox tx"
@@ -271,7 +275,9 @@ rfduinoBlimpMini1 = "D2:9F:90:14:98:4C"
 rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
 
 # b1 = bleBot(rfduinoBlimpTiny1)
+# b2 = bleBot(rfduino)
 b2 = bleBot(rfduinoBlimpMini1)
+
 # b1.connect()
 b2.connect()
 

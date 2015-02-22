@@ -28,8 +28,8 @@ void setup()
   pinMode(faultPin, INPUT);
   Wire.beginOnPins(5,6); //SCL pin, SDA pin //5,6 for slimstack board v1
   delay(20);
-  Serial.begin(9600);
-  Serial.println("\nDVR8830 Motor Controller");
+//  Serial.begin(9600);
+//  Serial.println("\nDVR8830 Motor Controller");
   RFduinoBLE.deviceName = "RFduino Blimp - tiny"; //Sets the device name  
 //  RFduinoBLE.advertisementData = "temp"; //data in the advertisement  
   RFduinoBLE.begin();  // start the BLE stack
@@ -37,50 +37,30 @@ void setup()
   Vset = 0x3F;
   lastPing = millis();
  
-  Serial.println("test motors"); 
+//  Serial.println("test motors"); 
   delay(25);
   
   clearFault(MOTOR1);
   clearFault(MOTOR2);
   clearFault(MOTOR3);
 
+
   delay(25);
-  setForward(MOTOR2,0x3F);
+  
+  setForward(MOTOR1,0x3F);
   delay(200);
-  setReverse(MOTOR2,0x3F);
+  setBrake(MOTOR1);
+  delay(200);
+  
+  setForward(MOTOR2,0x3F);
   delay(200);
   setBrake(MOTOR2);
   delay(200);
   
-  delay(25);
   setForward(MOTOR3,0x3F);
-  delay(200);
-  setReverse(MOTOR3,0x3F);
   delay(200);
   setBrake(MOTOR3);
   delay(200);
-    
-
-  setForward(MOTOR1,0x08);
-  delay(3000);
-  setBrake(MOTOR1);
-  delay(1000);
-  
-  
-  setForward(MOTOR1,0x1F);
-  delay(3000);
-  setBrake(MOTOR1);
-  delay(1000);
-
-  
-  setForward(MOTOR1,0x3F);
-  delay(3000);
-  setBrake(MOTOR1);
-  delay(1000);
-  
-  setReverse(MOTOR1,0x3F);
-  delay(1000);
-  setBrake(MOTOR1);
   
   Serial.println("ready to go!"); 
 }
