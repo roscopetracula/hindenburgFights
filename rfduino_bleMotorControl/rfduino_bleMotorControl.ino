@@ -22,11 +22,13 @@ int lastPing;
 int thisLoopMillis=0;
 bool timeoutPossible=0;
 int faultPin = 4;
+int sclPin = 2;
+int sdaPin = 3;
 
 void setup()
 {
   pinMode(faultPin, INPUT);
-  Wire.beginOnPins(5,6); //SCL pin, SDA pin //5,6 for slimstack board v1
+  Wire.beginOnPins(sclPin, sdaPin); //SCL pin, SDA pin //5,6 for slimstack board v1
   delay(20);
   Serial.begin(9600);
   Serial.println("\nDVR8830 Motor Controller");
