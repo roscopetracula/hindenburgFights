@@ -175,7 +175,6 @@ class Controller(object):
     def reconnect(self):
         self.bleBlimp.reconnect()
 
-
 class KbdCtrl(Controller):
     def __init__(self,bleBlimp,axisToMotorMap,keyMap):
         Controller.__init__(self,bleBlimp)
@@ -183,6 +182,7 @@ class KbdCtrl(Controller):
         self.axisToMotorMap = axisToMotorMap
         self.keyMap = keyMap
         self.handledKeys = self.keyMap.values()
+
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
         if keyAction == "f":
@@ -205,7 +205,7 @@ class KbdCtrl(Controller):
             motorPolarity = not self.axisToMotorMap["u_d"][1]
 
         if evt.type==KEYUP:
-            motorPolarity = "00"
+            motorDirection = "00"
         elif motorPolarity:
             motorDirection = "01"
         else:
@@ -214,17 +214,18 @@ class KbdCtrl(Controller):
         self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
         self.bleBlimp.transmitState()
 
-
-
 class XboxCtrl(Controller):
     def __init__(self,bleBlimp,axisMap,joystick,deadzone=0.3):
         Controller.__init__(self,bleBlimp)
         self.axisMap = axisMap
         self.joystick = joystick
-        self.axisState = ["00","00","00"] #used to track changes in state; send only upon state change.
+        #used to track changes in state; send only upon state change.
+        self.axisState = ["00","00","00"]
         self.deadzone = deadzone
+
     def undeadzone(self,x):
         return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
+
     def handleXbox(self):
         thisAxisState = ["00","00","00"]
         self.joystick.init()
@@ -256,10 +257,6 @@ class XboxCtrl(Controller):
             self.axisState = thisAxisState
             # print "xbox tx"
 
-
-
-
-
 pygame.init()
 BLACK = (0,0,0)
 WIDTH = 300
@@ -267,74 +264,81 @@ HEIGHT = 300
 windowSurface = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
 
 windowSurface.fill(BLACK)
-
-
-imuDuino = "FD:B3:BC:98:29:EF"
-rfduino = "C9:44:30:80:0D:1A"
-rfduinoBlimpMini1 = "D2:9F:90:14:98:4C"
-rfduinoBlimpTiny1 = "FC:E5:E2:09:9C:0E"
-
-# b1 = bleBot(rfduinoBlimpTiny1)
-# b2 = bleBot(rfduino)
-b2 = bleBot(rfduinoBlimpMini1)
-
-# b1.connect()
-b2.connect()
-
-blimps=[b2]
+prhaduino="EA:B5:28:C2:C7:67"
+blimp = bleBot(prhaduino)
+blimp.connect()
+blimps=[blimp]
 
 # the tuples for the axisToMotorMap give the axis and the direction of the motor.
 # the second entry in the tuple is a boolean flag saying whether the motor defaults to cw or ccw.
-keymap1 = {"f":pygame.K_UP, "b": pygame.K_DOWN, "r" :pygame.K_RIGHT, "l":pygame.K_LEFT, "u":pygame.K_o, "d": pygame.K_l}
-# kbd1 = KbdCtrl(b1, {"f_b":(2,False), "r_l":(1,True), "u_d":(0,False)}, keymap1)
-# kbds = [kbd1]
-kbds=[]
 
-# keymap2 = {"f":pygame.K_d, "b": pygame.K_c, "r" :pygame.K_v, "l":pygame.K_x, "u":pygame.K_a, "d": pygame.K_z, "quit":pygame.K_q, "reconnect":pygame.K_r}
-# kbd2 = KbdCtrl(b2, {"f_b":(0,True), "r_l":(1,True), "u_d":(2,False)}, keymap2)
-# kbds = [kbd1,kbd2]
+keyboardControllers = []
+hasKeyboard = True
+if hasKeyboard:
+    keyboardControllers = [
+        KbdCtrl(
+            blimp,
+            {
+                "f_b": (2,False),
+                "r_l": (1,True),
+                "u_d": (0,False)
+            },
+            {
+                "f": pygame.K_UP,
+                "b": pygame.K_DOWN,
+                "r": pygame.K_RIGHT,
+                "l": pygame.K_LEFT,
+                "u": pygame.K_o,
+                "d": pygame.K_l
+            }
+        )
+    ]
 
+xboxControllers = []
+hasXBox = False
+if hasXBox:
+    pygame.joystick.init()
 
-
-
-
-pygame.joystick.init()
-# the axisMap tuples are: (motorNumber, joystickAxNumber, joystickAxisDirection)
-# where joystickAxisDirection is a multiplier on returned axis value to set the mapping of joystick direction to motor direction
-xbox1 = XboxCtrl(b2, {"f_b":(0,4,-1.0), "r_l":(1,3,-1.0), "u_d":(2,1,1.0)}, pygame.joystick.Joystick(0))
-
-xboxen = [xbox1]
-# motorBytes = ["00","00","00"]
+    # the axisMap tuples are: (motorNumber, joystickAxNumber, joystickAxisDirection)
+    # where joystickAxisDirection is a multiplier on returned axis value to set
+    # the mapping of joystick direction to motor direction
+    xboxControllers = [
+        XboxCtrl(
+            blimp,
+            {
+                "f_b": (0, 4, -1.0),
+                "r_l": (1, 3, -1.0),
+                "u_d": (2, 1, 1.0)
+            },
+            pygame.joystick.Joystick(0))
+    ]
 
 lastTx = time.time()
-reTxTimeout=.9 #retransmit every x sec
-
-
-
+reTxTimeout = .9
 
 while True:
     events = pygame.event.get()
     for event in events:
-        # print event
+
         if (event.type == QUIT) or (event.type == KEYDOWN and event.key == pygame.K_q):
             for blimp in blimps:
                 blimp.cleanup()
-            # b1.cleanup()
             pygame.quit()
             sys.exit()
+
         if (event.type == KEYDOWN and event.key == pygame.K_r):
             for blimp in blimps:
                 blimp.reconnect()
 
-        if (event.type == KEYDOWN or event.type == KEYUP) and kbds:
-            for kbd in kbds:
+        if (event.type == KEYDOWN or event.type == KEYUP) and keyboardControllers:
+            for kbd in keyboardControllers:
                 if event.key in kbd.handledKeys:
                     kbd.handleEvt(event)
-    for xbox in xboxen:
+
+    for xbox in xboxControllers:
         xbox.handleXbox()
+
     for blimp in blimps:
         blimp.reTxState()
+
     time.sleep(0.0001)
-
-
-
