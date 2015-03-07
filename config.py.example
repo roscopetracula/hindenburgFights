@@ -1,0 +1,45 @@
+import pygame
+from lib.constants import (
+    XBOX,
+    KEYBOARD,
+    AXIS_0,
+    AXIS_1,
+    AXIS_2,
+    NORMAL,
+    INVERTED,
+)
+
+# Normally, this would be yaml file, but this is easier for the moment...
+# Enter the controller specifications for each blimp run through this instance
+# of the blimp game, by specifying the controller type, the RFduino UUID, and
+# the appropriate control specification
+
+CONTROLLERS = [
+    {
+        'type': KEYBOARD,
+        'uuid': "EA:B5:28:C2:C7:67",
+        'orientation': {
+            "f_b": (AXIS_2, INVERTED),
+            "r_l": (AXIS_1, NORMAL),
+            "u_d": (AXIS_0, INVERTED)
+        },
+        'keys': {
+            "f": pygame.K_UP,
+            "b": pygame.K_DOWN,
+            "r": pygame.K_RIGHT,
+            "l": pygame.K_LEFT,
+            "u": pygame.K_o,
+            "d": pygame.K_l
+        }
+    },
+    {
+        'type': XBOX,
+        'uuid': "EA:B5:28:C2:C7:67",
+        'orientation': {
+            "f_b": (0, 4, -1.0),
+            "r_l": (1, 3, -1.0),
+            "u_d": (2, 1, 1.0)
+        },
+        'joystick': 0
+    },
+]

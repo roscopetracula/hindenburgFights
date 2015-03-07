@@ -25,6 +25,7 @@ void setup()
   delay(20);
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
+  Serial.begin(9600);
   Vset = 0x3F;
   lastPing = millis();
   testMotors(0x3F, 200);
@@ -94,7 +95,7 @@ void sendMessage(byte motor, uint8_t value, String msg) {
   Wire.beginTransmission(motor);
   Wire.write(CONTROL);
   Wire.write(value);
-  Serial.print(msg);
+  Serial.print(msg+" ");
   Serial.println(Wire.endTransmission());
 }
 

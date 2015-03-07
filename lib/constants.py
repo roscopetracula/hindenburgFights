@@ -1,0 +1,9 @@
+XBOX = 1
+KEYBOARD = 2
+
+AXIS_0 = 0
+AXIS_1 = 1
+AXIS_2 = 2
+
+NORMAL = True
+INVERTED = False
