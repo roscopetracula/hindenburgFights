@@ -1,3 +1,11 @@
+Code layout
+===========
+This repo contains code for the RFduino (to be flashed using Arduino), and the controller (to be run on the VM).  The controller code is executed with the command:
+
+    `python blimpControl.py`
+
+The blimpControl.py script needs access to the controller config, which contains the device-specific configuration and lives in config.py.  An example file can be found at config.py.example.
+
 Get Hardware
 ============
 The blimp carries an [RFduino](https://github.com/RFduino/RFduino). The production version uses the [surface-mount](http://www.rfdigital.com/product/rfd22301-rfduino-ble-smt/index.html) version on a custom board, but for development you can also use the [DIP](http://www.rfdigital.com/product/rfd22102-rfduino-dip/index.html) version and the compatible USB shield. The chip is identical, just in different packaging.
@@ -9,7 +17,7 @@ Yes, you do need to install the sketchy FTDI drivers.
 
 Compile to Arduino
 ==================
-Open `rfduino_bleMotorControl/rfduino_bleMotorControl.ino` in the Arduino environment. Choose "Tools > Board > RFDuino" and then "Sketch > Verify/Compile". If no errors, you can load to the board by doing "File > Upload". Be sure you've selected the correct port from "Tools > Port". (Mine was like /dev/cu.usbserial-DC008W6W or something) Once you see "SUCCESS !" you can take the board off the programmer and hook it up to the battery pack. It will automatically run our code when it boots.
+Open `rfduinoControl/rfduinoControl.ino` in the Arduino environment. Choose "Tools > Board > RFDuino" and then "Sketch > Verify/Compile". If no errors, you can load to the board by doing "File > Upload". Be sure you've selected the correct port from "Tools > Port". (Mine was like /dev/cu.usbserial-DC008W6W or something) Once you see "SUCCESS !" you can take the board off the programmer and hook it up to the battery pack. It will automatically run our code when it boots.
 
 Note that the development board motor controller uses pins 2 and 3, whereas the production board uses pins 5 and 6. If you're using a development board, change line 29 to: `Wire.beginOnPins(2,3);`
 
@@ -24,7 +32,6 @@ Get Ubuntu Image
 Someone can give you the thing, it's like 5GB. All the requisite libraries are in the image. We're using [bluez](http://www.bluez.org/), which provides `hcitool` and `gatttool`. If you can get that thing to boot you're good. The password for the account is `boom`.
 
 Ctrl+Opt+T will give you a terminal. `hindenbergFights/` has this repo checked out already, just `git pull` to update.
-
 
 Bluetooth Hardware
 ==================
