@@ -1,4 +1,3 @@
-import blescan
 import os
 import sys
 import time
@@ -13,9 +12,6 @@ from lib.controller import (
     KeyboardController,
     XboxController,
 )
-
-if not os.geteuid() == 0:
-    sys.exit("script only works as root")
 
 btlib = find_library("bluetooth")
 if not btlib:
