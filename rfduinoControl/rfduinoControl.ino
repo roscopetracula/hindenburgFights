@@ -8,24 +8,33 @@
 #define CONTROL 0x00
 #define FAULT 0x01
 
+byte motors[3] = {MOTOR1,MOTOR2,MOTOR3};
 int Vset;
-int timeout=1000;
+int motorTimeout = 1000;
+int igniterTimeout = 1000;
 int lastPing;
-int thisLoopMillis=0;
-bool timeoutPossible=0;
+int motorMillis = 0;
+int igniterMillis = 0;
+bool timeoutPossible = 0;
 
 int sclPin = 2; // 5 for slimstack board
 int sdaPin = 3; // 6 for slimstack board
 int faultPin = 4;
+int igniterPin = 6;
+uint8_t wireAck;
+
 
 void setup()
 {
   pinMode(faultPin, INPUT);
+  pinMode(igniterPin, OUTPUT);
   Wire.beginOnPins(sclPin, sdaPin);
   delay(20);
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
+  delay(20);
   Serial.begin(9600);
+  delay(20);
   Vset = 0x3F;
   lastPing = millis();
   testMotors(0x3F, 200);
@@ -34,25 +43,36 @@ void setup()
 
 void loop()
 {
-  thisLoopMillis=millis();
+  motorMillis = millis();
 
   if (digitalRead(faultPin) == LOW) {
     Serial.println(" ----FAULT----  ");
     clearAllFaults();
   }
 
-  if ((thisLoopMillis - lastPing) > timeout && timeoutPossible == 1){
-    Serial.print("lastPing timeout:  ");
-    Serial.println(lastPing);
-    Serial.print("thisLoopMillis:    ");
-    Serial.println(thisLoopMillis);
+  if ((motorMillis - lastPing) > motorTimeout && timeoutPossible == 1){
+    // Serial.print("lastPing timeout:  ");
+    // Serial.println(lastPing);
+    // Serial.print("motorMillis:    ");
+    // Serial.println(motorMillis);
     setBrake(MOTOR1);
     setBrake(MOTOR2);
     setBrake(MOTOR3);
     timeoutPossible = 0; //can only timeout once
     Serial.println(" TIMED OUT ");
   }
+
+  if (millis()-igniterMillis > igniterTimeout){
+    igniterMillis = millis();
+    setIgniter(0x00);
+  }
 }
+
+
+
+
+
+
 
 void RFduinoBLE_onConnect() {
   Serial.println("connected");
@@ -66,20 +86,29 @@ void RFduinoBLE_onDisconnect() {
 
 void RFduinoBLE_onReceive(char *data, int len) {
   lastPing=millis();
-  Serial.print("lastPing set:    ");
-  Serial.println(lastPing);
-  Serial.println( "-----------RX-----------");
-  clearAllFaults();
+  // Serial.print("lastPing set:    ");
+  // Serial.println(lastPing);
+  // Serial.println( "-----------RX-----------");
+  // clearAllFaults();
 
-  if (len == 6) {
-    receiveMotorCommand(MOTOR1, data[0], data[1]);
-    receiveMotorCommand(MOTOR2, data[2], data[3]);
-    receiveMotorCommand(MOTOR3, data[4], data[5]);
+  // if (len == 6) {
+  //   receiveMotorCommand(MOTOR1, data[0], data[1]);
+  //   receiveMotorCommand(MOTOR2, data[2], data[3]);
+  //   receiveMotorCommand(MOTOR3, data[4], data[5]);
+  // }
+  if (len == 3)
+  {
+    if (0x00<=data[0] && data[0]<=0x02){
+      receiveMotorCommand(motors[data[0]], data[1], data[2]);
+    }
+    else if (data[0] == 0x03) {
+      setIgniter(data[1]);
+    }
   }
-
   // now that we've recieved data it's possible to timeout.
   timeoutPossible = 1;
 }
+
 
 void receiveMotorCommand(byte motor, uint8_t value, uint8_t speed) {
   if (value == 0x01) {
@@ -91,12 +120,23 @@ void receiveMotorCommand(byte motor, uint8_t value, uint8_t speed) {
   }
 }
 
+void setIgniter(byte igniterCode){
+  if (igniterCode==0x01){
+    digitalWrite(igniterPin,HIGH);
+    igniterMillis=millis();
+    } else {
+      digitalWrite(igniterPin,LOW);
+    }
+}
+
+
 void sendMessage(byte motor, uint8_t value, String msg) {
   Wire.beginTransmission(motor);
   Wire.write(CONTROL);
   Wire.write(value);
+  wireAck = Wire.endTransmission();
   Serial.print(msg+" ");
-  Serial.println(Wire.endTransmission());
+  Serial.println();
 }
 
 void setCoast(byte thisMotor){
