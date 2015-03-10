@@ -55,4 +55,4 @@ while True:
     for controller in controllers:
         controller.retransmit()
 
-    time.sleep(0.0001)
+    time.sleep(0.05)

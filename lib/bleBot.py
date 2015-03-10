@@ -22,7 +22,10 @@ class bleBot:
         self.handle = '0011' #!! this is the TX service on the nRF8001 adafruit breakout with callbackEcho sketch
 
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
-        self.lastTx = 0
+        self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
+        self.igniterState = ("00","00") # send ["00",xx] for on, anything else for off
+        self.lastTxIgniterState = ("00","00") # send ["00",xx] for on, anything else for off
+        self.lastTxTime = 0
 
     def connect( self ):
         print "Preparing to connect. Address: " + self.ble_adr
@@ -134,13 +137,35 @@ class bleBot:
 
     def transmitState(self):
         self.char_write_cmd("".join(["".join(tup) for tup in self.motorState]))
-        self.lastTx = time.time()
+        self.lastTxState = self.motorState
+        self.lastTxTime = time.time()
+
+    def sendToChannel(self, channel, data):
+        self.char_write_cmd(channel+data)
+        self.lastTxTime = time.time()
+
+
+    def txStateChanges(self):
+        for i in range(3):
+            if self.lastTxState[i] != self.motorState[i]:
+                self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
+                self.lastTxState[i] = self.motorState[i]
+        if self.igniterState!=self.lastTxIgniterState:
+            self.sendToChannel("03", "".join(self.igniterState))
+            self.igniterState = self.lastTxIgniterState
+        
 
     def reTxState(self):
-        if time.time() - self.lastTx > TRANSMISSION_TIMEOUT and any([byte[0]!="00" for byte in self.motorState]):
-            #...send the motorState if it hasn't been sent in a while and it's non-zero.
-            self.transmitState()
+        if time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
+            #retransmit any non-zero states that haven't been sent in a while
+            for i in range(3):
+                if self.motorState[i]!=("00","00"):
+                    self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
+            if self.igniterState!=("00","00"):
+                self.sendToChannel("03", "".join(self.igniterState))
 
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
 
+    def setIgniterState(self, onOrOff):
+        self.igniterState = (onOrOff,"00")

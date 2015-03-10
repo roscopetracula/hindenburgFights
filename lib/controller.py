@@ -30,6 +30,7 @@ def create_controller(cfg):
         controller = XboxController(
             ble_control,
             cfg['orientation'],
+            cfg['igniterAxis'],
             pygame.joystick.Joystick(
                 cfg['joystick']
             )
@@ -90,19 +91,20 @@ class KeyboardController(Controller):
         self.bleBlimp.transmitState()
 
 class XboxController(Controller):
-    def __init__(self,bleBlimp,axisMap,joystick,deadzone=0.3):
+    def __init__(self,bleBlimp,axisMap,igniterAxis,joystick,deadzone=0.3):
         Controller.__init__(self,bleBlimp)
         self.axisMap = axisMap
         self.joystick = joystick
         #used to track changes in state; send only upon state change.
-        self.axisState = ["00","00","00"]
+        self.axisState = []
         self.deadzone = deadzone
+        self.igniterAxis = igniterAxis
 
     def undeadzone(self,x):
         return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
 
     def handleXbox(self):
-        thisAxisState = ["00","00","00"]
+        nowAxisState = ["00","00","00","00"]
         self.joystick.init()
         for axis in self.axisMap.items():
             # axis[1][0]  --motorIndex
@@ -112,24 +114,27 @@ class XboxController(Controller):
             if axisVal > self.deadzone:
                 motorDirection = "01"
                 motorSpeed = numToMotorCode(self.undeadzone(axisVal))
-                # print "a",thisAxisState,self.deadzone
             elif axisVal < -self.deadzone:
                 motorDirection = "02"
                 motorSpeed = numToMotorCode(self.undeadzone(axisVal))
-                # print "b",thisAxisState,self.deadzone
             else:
                 motorDirection = "00"
                 motorSpeed = "00"
-                # print "c",thisAxisState,self.deadzone
-
-            thisAxisState[axis[1][0]]=motorSpeed
-            # self.bleBlimp.setMotorState(motorCode,)
+            nowAxisState[axis[1][0]]=motorSpeed
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
+        
+        if self.joystick.get_axis( self.igniterAxis)>0:
+            self.bleBlimp.setIgniterState("01")
+            nowAxisState[3] = "01"
+        else:
+            self.bleBlimp.setIgniterState("00")
+            nowAxisState[3] = "00"
 
-        if thisAxisState != self.axisState:
-            print thisAxisState, self.bleBlimp.motorState,axisVal
-            self.bleBlimp.transmitState()
-            self.axisState = thisAxisState
+        if nowAxisState != self.axisState:
+            self.bleBlimp.txStateChanges()
+            self.axisState = nowAxisState
+            print nowAxisState
+
 
 def numToMotorCode(x):
     # input: x, a number in [0, 1]
