@@ -97,15 +97,11 @@ class bleBot:
         self.con.sendline( cmd )
         try:
             rnb = self.con.read_nonblocking(2048,0) #flush the read pipe!! SUPER IMPORTANT
-            # print "----RNB----\n", rnb, "\n-----END RNB-----"
             if "Command Failed:" in rnb:
                 print "attempt reconnect..."
-                # FIXME this is where the reconnect should happen
-                # should it just be: self.connect() ??
                 self.connect()
         except:
             print "could not 'flush read pipe'"
-        # print 'After sending command, before: ', self.con.before, 'after :', self.con.after
         return
 
     def cleanup( self ):
@@ -144,16 +140,14 @@ class bleBot:
         self.char_write_cmd(channel+data)
         self.lastTxTime = time.time()
 
-
     def txStateChanges(self):
         for i in range(3):
             if self.lastTxState[i] != self.motorState[i]:
                 self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
                 self.lastTxState[i] = self.motorState[i]
-        if self.igniterState!=self.lastTxIgniterState:
+        if self.igniterState != self.lastTxIgniterState:
             self.sendToChannel("03", "".join(self.igniterState))
-            self.igniterState = self.lastTxIgniterState
-        
+            self.lastTxIgniterState = self.igniterState
 
     def reTxState(self):
         if time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
