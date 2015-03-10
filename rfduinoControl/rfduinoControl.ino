@@ -51,11 +51,6 @@ void loop()
   }
 
   if ((motorMillis - lastPing) > motorTimeout && timeoutPossible == 1){
-    // Serial.print("lastPing timeout:  ");
-    // Serial.println(lastPing);
-    // Serial.print("motorMillis:    ");
-    // Serial.println(motorMillis);
-    setBrake(MOTOR1);
     setBrake(MOTOR2);
     setBrake(MOTOR3);
     timeoutPossible = 0; //can only timeout once
@@ -84,18 +79,16 @@ void RFduinoBLE_onDisconnect() {
   testMotors(0x3F, 50);
 }
 
+
+
+/*
+radio messages should be 3 bytes: [channelNum,msg1,msg2]
+how msg1 ang msg2 bytes will be understood depends on the channel.
+for motor channels (00-02) it will be [motorNum,motorDirectionCode,motorSpeed]
+for igniter channel (03) it will be [channelNum,duration1,duration2]
+*/
 void RFduinoBLE_onReceive(char *data, int len) {
   lastPing=millis();
-  // Serial.print("lastPing set:    ");
-  // Serial.println(lastPing);
-  // Serial.println( "-----------RX-----------");
-  // clearAllFaults();
-
-  // if (len == 6) {
-  //   receiveMotorCommand(MOTOR1, data[0], data[1]);
-  //   receiveMotorCommand(MOTOR2, data[2], data[3]);
-  //   receiveMotorCommand(MOTOR3, data[4], data[5]);
-  // }
   if (len == 3)
   {
     if (0x00<=data[0] && data[0]<=0x02){
