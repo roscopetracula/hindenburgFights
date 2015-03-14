@@ -131,11 +131,6 @@ class bleBot:
             pass
         self.connect()
 
-    def transmitState(self):
-        self.char_write_cmd("".join(["".join(tup) for tup in self.motorState]))
-        self.lastTxState = self.motorState
-        self.lastTxTime = time.time()
-
     def sendToChannel(self, channel, data):
         self.char_write_cmd(channel+data)
         self.lastTxTime = time.time()

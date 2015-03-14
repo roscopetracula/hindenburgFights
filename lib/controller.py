@@ -61,34 +61,43 @@ class KeyboardController(Controller):
 
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
-        if keyAction == "f":
-            motorIndex = self.axisToMotorMap["f_b"][0]
-            motorPolarity = self.axisToMotorMap["f_b"][1]
-        elif keyAction == "b":
-            motorIndex = self.axisToMotorMap["f_b"][0]
-            motorPolarity = not self.axisToMotorMap["f_b"][1]
-        elif keyAction == "l":
-            motorIndex = self.axisToMotorMap["r_l"][0]
-            motorPolarity = self.axisToMotorMap["r_l"][1]
-        elif keyAction == "r":
-            motorIndex = self.axisToMotorMap["r_l"][0]
-            motorPolarity = not self.axisToMotorMap["r_l"][1]
-        elif keyAction == "u":
-            motorIndex = self.axisToMotorMap["u_d"][0]
-            motorPolarity = self.axisToMotorMap["u_d"][1]
-        elif keyAction == "d":
-            motorIndex = self.axisToMotorMap["u_d"][0]
-            motorPolarity = not self.axisToMotorMap["u_d"][1]
 
-        if evt.type==KEYUP:
-            motorDirection = "00"
-        elif motorPolarity:
-            motorDirection = "01"
+        if keyAction == 'i':
+            if evt.type==KEYUP:
+                self.bleBlimp.setIgniterState("00")
+            else:
+                self.bleBlimp.setIgniterState("01")
         else:
-            motorDirection = "02"
+            if keyAction == "f":
+                motorIndex = self.axisToMotorMap["f_b"][0]
+                motorPolarity = self.axisToMotorMap["f_b"][1]
+            elif keyAction == "b":
+                motorIndex = self.axisToMotorMap["f_b"][0]
+                motorPolarity = not self.axisToMotorMap["f_b"][1]
+            elif keyAction == "l":
+                motorIndex = self.axisToMotorMap["r_l"][0]
+                motorPolarity = self.axisToMotorMap["r_l"][1]
+            elif keyAction == "r":
+                motorIndex = self.axisToMotorMap["r_l"][0]
+                motorPolarity = not self.axisToMotorMap["r_l"][1]
+            elif keyAction == "u":
+                motorIndex = self.axisToMotorMap["u_d"][0]
+                motorPolarity = self.axisToMotorMap["u_d"][1]
+            elif keyAction == "d":
+                motorIndex = self.axisToMotorMap["u_d"][0]
+                motorPolarity = not self.axisToMotorMap["u_d"][1]
 
-        self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
-        self.bleBlimp.transmitState()
+            if evt.type==KEYUP:
+                motorDirection = "00"
+            elif motorPolarity:
+                motorDirection = "01"
+            else:
+                motorDirection = "02"
+            
+            self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
+
+        self.bleBlimp.txStateChanges()
+
 
 class XboxController(Controller):
     def __init__(self,bleBlimp,axisMap,igniterAxis,joystick,deadzone=0.3):
