@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 '''
 July 5, 2014 Nancy Ouyang
 Usage:
