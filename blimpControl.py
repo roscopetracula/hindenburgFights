@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import argparse
 import pygame, sys
 
 from ctypes.util import find_library
@@ -21,6 +22,9 @@ if not btlib:
         "Can't find required bluetooth libraries"
     )
 
+parser = argparse.ArgumentParser(description='We be big blimpin.')
+args = parser.parse_args()
+
 WIDTH = 300
 HEIGHT = 300
 pygame.init()
@@ -31,6 +35,8 @@ controllers = load_controllers()
 
 while True:
     events = pygame.event.get()
+
+    # Process all events in queue, including keybaord controller events.
     for event in events:
 
         if (event.type == QUIT) or \
@@ -50,6 +56,7 @@ while True:
                    event.key in controller.handledKeys:
                     controller.handleEvt(event)
 
+    # Check for any Xbox controller activity.
     for controller in controllers:
         if isinstance(controller, XboxController):
             controller.handleXbox()
