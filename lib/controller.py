@@ -88,13 +88,13 @@ class KeyboardController(Controller):
                 motorPolarity = not self.axisToMotorMap["u_d"][1]
 
             if evt.type==KEYUP:
-                motorDirection = "00"
-            elif motorPolarity:
-                motorDirection = "01"
+                self.bleBlimp.setMotorState(motorIndex, "00", "00")
             else:
-                motorDirection = "02"
-            
-            self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
+                if motorPolarity:
+                    motorDirection = "01"
+                else:
+                    motorDirection = "02"
+                self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
 
         self.bleBlimp.txStateChanges()
 
