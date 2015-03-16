@@ -13,6 +13,8 @@ from lib.constants import (
 # Enter the controller specifications for each blimp run through this instance
 # of the blimp game, by specifying the controller type, the RFduino UUID, and
 # the appropriate control specification
+#
+# uuid may be set to "dummy" to not control an actual blimp/bluetooth device.
 
 CONTROLLERS = [
     {

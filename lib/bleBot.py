@@ -11,12 +11,15 @@ TRANSMISSION_TIMEOUT = .9
 class bleBot:
     def __init__( self, ble_adr ):
         self.ble_adr = ble_adr
-        self.con = pexpect.spawn(
-            'gatttool -b %s -I -t random' % self.ble_adr
-        )
-        self.con.delaybeforesend = 0 #THIS LINE IS SUPER IMPORTANT
-        self.con.expect('\[LE\]', timeout=1)
-
+        
+        # Only actually try to connect for real devices.
+        if (ble_adr != "dummy"):
+            self.con = pexpect.spawn(
+                'gatttool -b %s -I -t random' % self.ble_adr
+            )
+            self.con.delaybeforesend = 0 #THIS LINE IS SUPER IMPORTANT
+            self.con.expect('\[LE\]', timeout=1)
+        
         # for IMUduino: char-write-cmd 0x000b 41424344; hande-> 'b'
         # for RFduino:  char-write-cmd 0x0011 41424344; handle-> '11'
         self.handle = '0011' #!! this is the TX service on the nRF8001 adafruit breakout with callbackEcho sketch
@@ -28,6 +31,11 @@ class bleBot:
         self.lastTxTime = 0
 
     def connect( self ):
+        
+        if (self.ble_adr == "dummy"):
+            print "Dummy connection established."
+            return self
+
         print "Preparing to connect. Address: " + self.ble_adr
         self.con.sendline('connect')
         try:
@@ -94,6 +102,11 @@ class bleBot:
         # for RFduino: char-write-cmd 0x0011 41424344555555
         cmd = 'char-write-cmd 0x%s %s' % (self.handle, value)
         print self.ble_adr, cmd
+
+        # Fake sending if we are ussing a dummy blimp.
+        if (self.ble_adr == "dummy"):
+            return
+
         self.con.sendline( cmd )
         try:
             rnb = self.con.read_nonblocking(2048,0) #flush the read pipe!! SUPER IMPORTANT
@@ -105,6 +118,11 @@ class bleBot:
         return
 
     def cleanup( self ):
+        # If we're using a dummy, just let us know and return.
+        if (self.ble_adr == "dummy"):
+            print "Dummy connection closed."
+            return
+
         print self.ble_adr, ': attempting to disconnect'
         try:
             self.con.sendline('disconnect')
@@ -124,6 +142,13 @@ class bleBot:
 
     def reconnect( self ):
         print self.ble_adr, 'attempting to RECONNECT'
+
+        # Not sure why this should happen, but simply return if a
+        # dummy device is reconnected.
+        if (self.ble_adr == "dummy"):
+            return
+        
+        # Otherwise, send a disconnect commend and re-call connect().
         self.con.sendline('disconnect')
         try:
             self.con.read_nonblocking(2048,0)
