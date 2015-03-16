@@ -171,12 +171,10 @@ class bleBot:
 
     def reTxState(self):
         if time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
-            #retransmit any non-zero states that haven't been sent in a while
+            #retransmit any states that haven't been sent in a while
             for i in range(3):
-                if self.motorState[i]!=("00","00"):
-                    self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
-            if self.igniterState!=("00","00"):
-                self.sendToChannel("03", "".join(self.igniterState))
+                self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
+            self.sendToChannel("03", "".join(self.igniterState))
 
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
