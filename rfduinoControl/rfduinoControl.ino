@@ -82,20 +82,22 @@ void RFduinoBLE_onDisconnect() {
 
 
 /*
-radio messages should be 3 bytes: [channelNum,msg1,msg2]
+radio messages should be multiples of 3 bytes: ([channelNum,msg1,msg2] * n)
 how msg1 ang msg2 bytes will be understood depends on the channel.
 for motor channels (00-02) it will be [motorNum,motorDirectionCode,motorSpeed]
 for igniter channel (03) it will be [channelNum,duration1,duration2]
 */
 void RFduinoBLE_onReceive(char *data, int len) {
   lastPing=millis();
-  if (len == 3)
+  
+  // We are assuming that any full block of three bytes can be interpreted, and any remainder 
+  for (int cmdStart=0; cmdStart+3 <= len; cmdStart+=3)
   {
-    if (0x00<=data[0] && data[0]<=0x02){
-      receiveMotorCommand(motors[data[0]], data[1], data[2]);
+    if (0x00<=data[cmdStart+0] && data[cmdStart+0]<=0x02){
+      receiveMotorCommand(motors[data[cmdStart+0]], data[cmdStart+1], data[cmdStart+2]);
     }
-    else if (data[0] == 0x03) {
-      setIgniter(data[1]);
+    else if (data[cmdStart+0] == 0x03) {
+      setIgniter(data[cmdStart+1]);
     }
   }
   // now that we've recieved data it's possible to timeout.
