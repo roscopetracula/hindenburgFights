@@ -2,7 +2,7 @@
 #include <RFduinoBLE.h>
 
 #define Vref = 1.285
-#define MOTOR1 0x67
+#define MOTOR1 0x63
 #define MOTOR2 0x64
 #define MOTOR3 0x61
 #define CONTROL 0x00
@@ -17,10 +17,10 @@ int motorMillis = 0;
 int igniterMillis = 0;
 bool timeoutPossible = 0;
 
-int sclPin = 2; // 5 for slimstack board
-int sdaPin = 3; // 6 for slimstack board
+int sclPin = 6; // 5 for slimstack board
+int sdaPin = 5; // 6 for slimstack board
 int faultPin = 4;
-int igniterPin = 6;
+int igniterPin = 3;
 uint8_t wireAck;
 
 
