@@ -7,6 +7,7 @@
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
+#define PROTOCOL_VERSION 0
 
 byte motors[3] = {MOTOR1,MOTOR2,MOTOR3};
 int Vset;
@@ -90,8 +91,22 @@ for igniter channel (03) it will be [channelNum,duration1,duration2]
 void RFduinoBLE_onReceive(char *data, int len) {
   lastPing=millis();
   
+  // Receive protocol version and message counter, and adjust length and data start accordingly.
+  char protoVersion = *data++;
+  char msgCounter = *data++;
+  len -= 2;
+  
+  char buf[256];
+  sprintf(buf, "message received: [p:%02x] [c:%02x] [l:%d]\n", protoVersion, msgCounter, len);
+  Serial.print(buf);
+  // If there is a protocol version mismatch, ignore all messages.
+  if (protoVersion != PROTOCOL_VERSION) {
+    Serial.printf("VERSION MISMATCH: Expected %d, received %d.\n", 0, PROTOCOL_VERSION);
+    return;
+  }
+  
   // We are assuming that any full block of three bytes can be interpreted, and any remainder 
-  for (int cmdStart=0; cmdStart+3 <= len; cmdStart+=3)
+  for (int cmdStart=2; cmdStart+3 <= len; cmdStart+=3)
   {
     if (0x00<=data[cmdStart+0] && data[cmdStart+0]<=0x02){
       receiveMotorCommand(motors[data[cmdStart+0]], data[cmdStart+1], data[cmdStart+2]);

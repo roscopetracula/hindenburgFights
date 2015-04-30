@@ -29,6 +29,7 @@ class bleBot:
         self.igniterState = ("00","00") # send ["00",xx] for on, anything else for off
         self.lastTxIgniterState = ("00","00") # send ["00",xx] for on, anything else for off
         self.lastTxTime = 0
+        self.counter = 0xff
 
     def connect( self ):
         
@@ -156,25 +157,43 @@ class bleBot:
             pass
         self.connect()
 
-    def sendToChannel(self, channel, data):
-        self.char_write_cmd(channel+data)
+    # Sends a message, prepending any protocol data.
+    def sendMessage(self, data):
+        self.char_write_cmd("00" + format(self.counter, '02x') + data)
+        # The counter starts at 0xFF to indicate a new connection and
+        # then always rolls over after 0xFE.  This bizarre way of
+        # calculating the modulus is used because it starts at 0xFF so
+        # incrementing would roll it over, but only on the very first
+        # try.  When someone has 5 minutes they might improve this.
+        # Another option would be to do something along the lines of
+        # ((counter + 1) % 256) % 255.
+        self.counter = self.counter + 1 if self.counter < 254 else 0
         self.lastTxTime = time.time()
 
+    # Transmits a channel/data pair.
+    def sendToChannel(self, channel, data):
+        self.sendMessage(channel+data)
+
     def txStateChanges(self):
+        tmpMsg = ""
         for i in range(3):
             if self.lastTxState[i] != self.motorState[i]:
-                self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
+                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
                 self.lastTxState[i] = self.motorState[i]
         if self.igniterState != self.lastTxIgniterState:
-            self.sendToChannel("03", "".join(self.igniterState))
+            tmpMsg += "03"+"".join(self.igniterState)
             self.lastTxIgniterState = self.igniterState
+        if tmpMsg != "":
+            self.sendMessage(tmpMsg)
 
     def reTxState(self):
         if time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
             #retransmit any states that haven't been sent in a while
+            tmpMsg = ""
             for i in range(3):
-                self.sendToChannel("0"+str(i), "".join(self.motorState[i]))
-            self.sendToChannel("03", "".join(self.igniterState))
+                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
+            tmpMsg += "03"+"".join(self.igniterState)
+            self.sendMessage(tmpMsg)
 
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
