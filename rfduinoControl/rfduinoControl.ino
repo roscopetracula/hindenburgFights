@@ -66,9 +66,8 @@ void loop()
     Serial.println(" TIMED OUT ");
   }
 
-  if (millis()-igniterMillis > igniterTimeout){
+  if (igniterState && millis()-igniterMillis > igniterTimeout){
     Serial.println("Igniter timed out, turning it off.");
-    igniterMillis = millis();
     updateIgniter(0x00);
   }
 }
@@ -224,13 +223,11 @@ void getFault(int thisMotor){
 
   Wire.beginTransmission(thisMotor);
   Wire.write(FAULT);
-  Serial.printf("Result of fault request for motor %d: ", thisMotor);
-  Serial.println(Wire.endTransmission());
+  Serial.printf("Motor %d faults (err %d): ", thisMotor, Wire.endTransmission());
 
   Wire.requestFrom(thisMotor,1);
   while(Wire.available()){
     RegisterFault = Wire.read();
-    Serial.print("RegisterFault: ");
     Serial.print(RegisterFault, HEX);
     Serial.print(" (");
 
@@ -249,8 +246,9 @@ void getFault(int thisMotor){
     if(RegisterFault & 0x10) //ILIMIT event
       Serial.print(" ILIMIT ");
 
-    Serial.println(")");
+    Serial.print(") ");
   }
+  Serial.println();
 }
 
 void clearFault(byte thisMotor){
