@@ -24,8 +24,8 @@ bool timeoutPossible = 0;
 int sclPin = 6; // 5 for slimstack board
 int sdaPin = 5; // 6 for slimstack board
 int faultPin = 4;
-int igniterPin = 3;
-int triggerPin = 2;
+int triggerPin = 3;
+int igniterPin = 2;
 uint8_t wireAck;
 
 
