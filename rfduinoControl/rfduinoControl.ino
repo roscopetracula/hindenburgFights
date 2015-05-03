@@ -25,6 +25,7 @@ int sclPin = 6; // 5 for slimstack board
 int sdaPin = 5; // 6 for slimstack board
 int faultPin = 4;
 int igniterPin = 3;
+int triggerPin = 2;
 uint8_t wireAck;
 
 
@@ -33,6 +34,7 @@ void setup()
   Serial.println("Blimp booting...");
   pinMode(faultPin, INPUT);
   pinMode(igniterPin, OUTPUT);
+  pinMode(triggerPin, INPUT);
   Wire.beginOnPins(sclPin, sdaPin);
   delay(20);
   RFduinoBLE.deviceName = "RFduino Blimp";
@@ -52,20 +54,35 @@ void loop()
 {
   motorMillis = millis();
 
+  // Check for any faults from the motor controllers and clear the ones we find.
   if (digitalRead(faultPin) == LOW) {
     Serial.println(" ----FAULT----  ");
-    getFault(MOTOR1);
-    getFault(MOTOR2);
-    getFault(MOTOR3);
-    clearAllFaults();
+    getFault(MOTOR1, true);
+    getFault(MOTOR2, true);
+    getFault(MOTOR3, true);
   }
 
+  // Start the igniter if the trigger pin has been pulled high.
+  if (digitalRead(triggerPin) == HIGH) {
+    // For the moment, this will keep the igniter on as long as the pin is pulled high.  
+    // We may wish to change this behavior if it results in the igniter staying on even as the
+    // blimp burns and falls.
+    igniterMillis = millis();
+    
+    if (!igniterState) {
+      Serial.println("igniter triggered by blimp collision");
+      updateIgniter(0x01);
+    }
+  }
+  
+  // Time out and shut everything down if we haven't heard from the transmitter in too long.
   if ((motorMillis - lastPing) > motorTimeout && timeoutPossible == 1){
     initDevices();
     timeoutPossible = 0; //can only timeout once
     Serial.println(" TIMED OUT ");
   }
 
+  // If the igniter has been on for long enough, turn it off.
   if (igniterState && millis()-igniterMillis > igniterTimeout){
     Serial.println("Igniter timed out, turning it off.");
     updateIgniter(0x00);
@@ -188,6 +205,7 @@ void setIgniter(byte igniterCode) {
 
 void updateIgniter(byte igniterCode) {
   if (igniterCode != igniterState)
+    igniterState = igniterCode;
     setIgniter(igniterState);
 }
 void sendMessage(byte motor, uint8_t value, char *msg) {
@@ -218,7 +236,7 @@ void setBrake(byte thisMotor){
   sendMessage(thisMotor, value, "brake"); 
 }
 
-void getFault(int thisMotor){
+void getFault(int thisMotor, bool shouldClearFault){
   uint8_t RegisterFault;
 
   Wire.beginTransmission(thisMotor);
@@ -249,14 +267,17 @@ void getFault(int thisMotor){
     Serial.print(") ");
   }
   Serial.println();
+
+  if (shouldClearFault) {
+    clearFault(thisMotor);
+  }
 }
 
 void clearFault(byte thisMotor){
   Wire.beginTransmission(thisMotor);
   Wire.write(FAULT);
   Wire.write(0x80); // CLEAR bit clears faults
-  Serial.print("clear fault ");
-  Serial.println(Wire.endTransmission());
+  Serial.printf("clear fault on motor %d: %d\n", thisMotor, Wire.endTransmission());
 }
 
 void clearAllFaults() {
