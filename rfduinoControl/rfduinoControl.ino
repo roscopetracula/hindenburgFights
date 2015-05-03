@@ -1,48 +1,49 @@
 #include <Wire.h>	
 #include <RFduinoBLE.h>
 
-#define Vref = 1.285
+// Motor addresses.
 #define MOTOR1 0x63
 #define MOTOR2 0x64
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
 #define PROTOCOL_VERSION 0
+#define MOTOR_TIMEOUT 1000
+#define IGNITER_TIMEOUT 1000
+#define V_SET 0x3f // 3f = 5.06, or ~20v max output.
+
+// Pin assignments.
+#define SCL_PIN     6 /* 5 for slimstack board */
+#define SDA_PIN     5 /* 6 for slimstack board */
+#define FAULT_PIN   4
+#define TRIGGER_PIN 3
+#define IGNITER_PIN 2
+
 
 byte motorIndexes[3] = {MOTOR1,MOTOR2,MOTOR3};
 byte motorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte igniterState = 0;
 byte expectedMsgCounter = 0xff;
-int Vset;
-int motorTimeout = 1000;
-int igniterTimeout = 1000;
 int lastPing;
 int motorMillis = 0;
 int igniterMillis = 0;
 bool timeoutPossible = 0;
-
-int sclPin = 6; // 5 for slimstack board
-int sdaPin = 5; // 6 for slimstack board
-int faultPin = 4;
-int triggerPin = 3;
-int igniterPin = 2;
-uint8_t wireAck;
+uint8_t wireAck = 0;
 
 
 void setup()
 {
   Serial.println("Blimp booting...");
-  pinMode(faultPin, INPUT);
-  pinMode(igniterPin, OUTPUT);
-  pinMode(triggerPin, INPUT);
-  Wire.beginOnPins(sclPin, sdaPin);
+  pinMode(FAULT_PIN, INPUT);
+  pinMode(IGNITER_PIN, OUTPUT);
+  pinMode(TRIGGER_PIN, INPUT);
+  Wire.beginOnPins(SCL_PIN, SDA_PIN);
   delay(20);
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
   delay(20);
   Serial.begin(9600);
   delay(20);
-  Vset = 0x3F;
   lastPing = millis();
 
   // Do the motor dance.
@@ -55,15 +56,16 @@ void loop()
   motorMillis = millis();
 
   // Check for any faults from the motor controllers and clear the ones we find.
-  if (digitalRead(faultPin) == LOW) {
+  if (digitalRead(FAULT_PIN) == LOW) {
     Serial.println(" ----FAULT----  ");
     getFault(MOTOR1, true);
     getFault(MOTOR2, true);
     getFault(MOTOR3, true);
   }
+    
 
   // Start the igniter if the trigger pin has been pulled high.
-  if (digitalRead(triggerPin) == HIGH) {
+  if (digitalRead(TRIGGER_PIN) == HIGH) {
     // For the moment, this will keep the igniter on as long as the pin is pulled high.  
     // We may wish to change this behavior if it results in the igniter staying on even as the
     // blimp burns and falls.
@@ -76,14 +78,14 @@ void loop()
   }
   
   // Time out and shut everything down if we haven't heard from the transmitter in too long.
-  if ((motorMillis - lastPing) > motorTimeout && timeoutPossible == 1){
+  if ((motorMillis - lastPing) > MOTOR_TIMEOUT && timeoutPossible == 1){
     initDevices();
     timeoutPossible = 0; //can only timeout once
     Serial.println(" TIMED OUT ");
   }
 
   // If the igniter has been on for long enough, turn it off.
-  if (igniterState && millis()-igniterMillis > igniterTimeout){
+  if (igniterState && millis()-igniterMillis > IGNITER_TIMEOUT){
     Serial.println("Igniter timed out, turning it off.");
     updateIgniter(0x00);
   }
@@ -194,10 +196,10 @@ void receiveMotorCommand(byte motorNum, byte motorIndex, uint8_t value, uint8_t 
 
 void setIgniter(byte igniterCode) {
   if (igniterCode==0x01){
-    digitalWrite(igniterPin,HIGH);
+    digitalWrite(IGNITER_PIN,HIGH);
     igniterMillis=millis();
     } else {
-      digitalWrite(igniterPin,LOW);
+      digitalWrite(IGNITER_PIN,LOW);
     }
   igniterState = igniterCode;
   Serial.printf("set igniter %d\n", igniterCode);
@@ -217,7 +219,7 @@ void sendMessage(byte motor, uint8_t value, char *msg) {
 }
 
 void setCoast(byte thisMotor){
-  int value = (Vset << 2) | 0x00;
+  int value = (V_SET << 2) | 0x00;
   sendMessage(thisMotor, value, "coast"); 
 }
 
@@ -232,7 +234,7 @@ void setReverse(byte thisMotor, int speed) {
 }
 
 void setBrake(byte thisMotor){
-  int value = (Vset << 2) | 0x03;
+  int value = (V_SET << 2) | 0x03;
   sendMessage(thisMotor, value, "brake"); 
 }
 
