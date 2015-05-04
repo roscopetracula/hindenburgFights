@@ -29,6 +29,7 @@ int lastPing;
 int motorMillis = 0;
 int igniterMillis = 0;
 bool timeoutPossible = 0;
+bool isConnected = false;
 uint8_t wireAck = 0;
 
 
@@ -83,13 +84,15 @@ void loop()
 
 
 void RFduinoBLE_onConnect() {
+  isConnected = true;
   Serial.println("connected");
   testMotors(0x3F, 100);
 }
 
 void RFduinoBLE_onDisconnect() {
-  Serial.println("disconnected");
-  initDevices();
+  isConnected = false;
+  Serial.println("disconnected, turning everything off");
+  resetState();
   testMotors(0x3F, 50);
 }
 
@@ -197,7 +200,7 @@ void setIgniter(byte igniterCode) {
 
 void updateIgniterState(void) {
   // Treat the controller and trigger together.
-  byte igniterTriggered = controllerTriggerState | blimpTriggerState;
+  byte igniterTriggered = isConnected && (controllerTriggerState || blimpTriggerState);
   
   if (igniterTriggered) {
     igniterMillis = millis();
@@ -210,7 +213,7 @@ void updateIgniterState(void) {
     // If the igniter has been on for long enough, turn it off.
     Serial.println("igniter timed out, turning it off.");
     setIgniter(0x00);
-  }
+  } 
 }
 
 void updateControllerTrigger(byte igniterCode) {
@@ -313,6 +316,16 @@ void initDevices(void) {
   setBrake(MOTOR1);
   setBrake(MOTOR2);
   setBrake(MOTOR3);
+}
+
+void resetState(void) {
+  initDevices();
+  for (int i=0; i<3; i++)
+    for (int j=0; j<2; j++)
+      motorStates[i][i] = 0;
+  blimpTriggerState = 0;
+  controllerTriggerState = 0;
+  expectedMsgCounter = 0xff;
 }
 
 void testMotors(uint8_t velocity, int interval)
