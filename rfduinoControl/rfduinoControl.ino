@@ -65,7 +65,7 @@ void loop()
   }
     
   // Check if the trigger has changed state, then check if the Igniter needs to be turned on or off.
-  updateBlimpTrigger(digitalRead(TRIGGER_PIN == HIGH) ? 0x01 : 0x00);
+  updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
   updateIgniterState();
 
   // Time out and shut everything down if we haven't heard from the transmitter in too long.
@@ -114,6 +114,10 @@ void RFduinoBLE_onReceive(char *data, int len) {
   sprintf(buf, "message received: [p:%02x] [c:%02x] [l:%d]\n", protoVersion, msgCounter, len);
   Serial.print(buf);
 
+  // Transmit debug ack message.  Currently disabled.
+  // sprintf(buf, "ack %02x", msgCounter);
+  // RFduinoBLE.send(buf, strlen(buf));
+  
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
     Serial.printf("VERSION MISMATCH: Expected %d, received %d.\n", 0, PROTOCOL_VERSION);
