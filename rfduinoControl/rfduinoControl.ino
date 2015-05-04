@@ -19,10 +19,11 @@
 #define TRIGGER_PIN 3
 #define IGNITER_PIN 2
 
-
 byte motorIndexes[3] = {MOTOR1,MOTOR2,MOTOR3};
 byte motorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte igniterState = 0;
+byte blimpTriggerState = 0;
+byte controllerTriggerState = 0;
 byte expectedMsgCounter = 0xff;
 int lastPing;
 int motorMillis = 0;
@@ -63,31 +64,15 @@ void loop()
     getFault(MOTOR3, true);
   }
     
+  // Check if the trigger has changed state, then check if the Igniter needs to be turned on or off.
+  updateBlimpTrigger(digitalRead(TRIGGER_PIN == HIGH) ? 0x01 : 0x00);
+  updateIgniterState();
 
-  // Start the igniter if the trigger pin has been pulled high.
-  if (digitalRead(TRIGGER_PIN) == HIGH) {
-    // For the moment, this will keep the igniter on as long as the pin is pulled high.  
-    // We may wish to change this behavior if it results in the igniter staying on even as the
-    // blimp burns and falls.
-    igniterMillis = millis();
-    
-    if (!igniterState) {
-      Serial.println("igniter triggered by blimp collision");
-      updateIgniter(0x01);
-    }
-  }
-  
   // Time out and shut everything down if we haven't heard from the transmitter in too long.
   if ((motorMillis - lastPing) > MOTOR_TIMEOUT && timeoutPossible == 1){
     initDevices();
     timeoutPossible = 0; //can only timeout once
     Serial.println(" TIMED OUT ");
-  }
-
-  // If the igniter has been on for long enough, turn it off.
-  if (igniterState && millis()-igniterMillis > IGNITER_TIMEOUT){
-    Serial.println("Igniter timed out, turning it off.");
-    updateIgniter(0x00);
   }
 }
 
@@ -104,6 +89,7 @@ void RFduinoBLE_onConnect() {
 
 void RFduinoBLE_onDisconnect() {
   Serial.println("disconnected");
+  initDevices();
   testMotors(0x3F, 50);
 }
 
@@ -162,12 +148,12 @@ void RFduinoBLE_onReceive(char *data, int len) {
   {
     // If it's a motor command, parse it.  
     // If it's an igniter command and the state has changed, update the igniter.
-    // State changes are identified in updateIgniter() and receiveMotorCommand().
+    // State changes are identified in updateControllerTrigger() and receiveMotorCommand().
     if (0x00<=data[cmdStart+0] && data[cmdStart+0]<=0x02) {
       receiveMotorCommand(data[cmdStart+0], motorIndexes[data[cmdStart+0]], data[cmdStart+1], data[cmdStart+2]);
     }
     else if (data[cmdStart+0] == 0x03) {
-      updateIgniter(data[cmdStart+1]);
+      updateControllerTrigger(data[cmdStart+1]);
     }
   }
   // now that we've recieved valid data it's possible to timeout.
@@ -205,11 +191,40 @@ void setIgniter(byte igniterCode) {
   Serial.printf("set igniter %d\n", igniterCode);
 }
 
-void updateIgniter(byte igniterCode) {
-  if (igniterCode != igniterState)
-    igniterState = igniterCode;
-    setIgniter(igniterState);
+void updateIgniterState(void) {
+  // Treat the controller and trigger together.
+  byte igniterTriggered = controllerTriggerState | blimpTriggerState;
+  
+  if (igniterTriggered) {
+    igniterMillis = millis();
+    
+    if (!igniterState) {
+      Serial.println("igniter turned on!");
+      setIgniter(0x01);
+    }
+  } else if (igniterState && millis()-igniterMillis > IGNITER_TIMEOUT){
+    // If the igniter has been on for long enough, turn it off.
+    Serial.println("igniter timed out, turning it off.");
+    setIgniter(0x00);
+  }
 }
+
+void updateControllerTrigger(byte igniterCode) {
+  if (igniterCode != controllerTriggerState) {
+    controllerTriggerState = igniterCode;
+    Serial.printf("controller trigger state change: %d\n", igniterCode);
+    updateIgniterState();
+  }
+}
+
+void updateBlimpTrigger(byte igniterCode) {
+  if (igniterCode != blimpTriggerState) {
+    blimpTriggerState = igniterCode;
+    Serial.printf("blimp trigger state change: %d\n", igniterCode);
+    updateIgniterState();
+  }
+}
+
 void sendMessage(byte motor, uint8_t value, char *msg) {
   Wire.beginTransmission(motor);
   Wire.write(CONTROL);
