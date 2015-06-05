@@ -116,3 +116,13 @@ at least these, but maybe a couple others if the build step below fails:
     cd pygame
     python setup.py build
     sudo python setup.py install
+    
+Get wireless xbox controls working
+==================================
+http://www.noobslab.com/2014/08/configure-xbox-controller-on-your.html
+
+    sudo add-apt-repository ppa:rael-gc/ubuntu-xboxdrv
+    sudo apt-get update
+    sudo apt-get install ubuntu-xboxdrv
+    sudo service xboxdrv restart
+
