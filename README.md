@@ -110,6 +110,7 @@ sudo apt-get install mercurial python-dev python-numpy libsdl-image1.2-dev libsd
 hg clone https://bitbucket.org/pygame/pygame
  
 ### Finally build and install
-cd pygame
-python setup.py build
-sudo python setup.py install
+
+    $ cd pygame
+    $ python setup.py build
+    $ sudo python setup.py install
