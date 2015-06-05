@@ -43,11 +43,12 @@ class bleBot:
             self.con.read_nonblocking(2048,0) #flush the read pipe!! SUPER IMPORTANT
         except:
             pass
-        i = self.con.expect(['Attempting', 'Error'], timeout=1)
-        if i == 0:
+        i = self.con.expect(['Connecting', 'Attempting', 'Error'], timeout=1)
+        if i == 0 or i == 1:
             print 'Attempting to connect'
-            j = self.con.expect(['Connection successful', 'No route', 'busy', pexpect.TIMEOUT], timeout = 1)
-            if j == 0:
+            j = self.con.expect(['Connection successful', 'No route', 'busy', '[CON]', pexpect.TIMEOUT], timeout = 3)
+#            print "j: ", j
+            if j == 0 or j == 3:
                 print self.ble_adr, ': connected!'
             if j == 1:
                 print self.ble_adr, ': No route to host, is USB dongle plugged in?'
@@ -76,7 +77,7 @@ class bleBot:
                         break
                     else:
                         print 'Did not understand command. Try again.'
-            if j == 3:
+            if j == 4:
                 print 'Attempting to connect, is device on and in range? '
                 #foostr = raw_input('Type anything to continue, or enter to cancel')
                 self.con.sendline('connect')
@@ -85,13 +86,13 @@ class bleBot:
                 except:
                     pass
                 k = self.con.expect(['Connection successful', pexpect.TIMEOUT], timeout = 3)
-                print 'k: ', k
+#                print 'k: ', k
                 if k == 0:
                     print self.ble_adr, ': connected!'
                 if k == 1:
                     print self.ble_adr, ': Could not connect'
                     self.cleanup()
-        if i == 1:
+        if i == 2:
             print 'Is USB dongle plugged in?'
             self.cleanup()
         return self
