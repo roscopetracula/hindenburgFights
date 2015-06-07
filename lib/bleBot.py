@@ -46,14 +46,14 @@ class bleBot:
         i = self.con.expect(['Connecting', 'Attempting', 'Error'], timeout=1)
         if i == 0 or i == 1:
             print 'Attempting to connect'
-            j = self.con.expect(['Connection successful', 'No route', 'busy', '[CON]', pexpect.TIMEOUT], timeout = 3)
+            j = self.con.expect(['Connection successful', '[CON]', 'No route', 'busy', pexpect.TIMEOUT], timeout = 3)
 #            print "j: ", j
-            if j == 0 or j == 3:
+            if j == 0 or j == 1:
                 print self.ble_adr, ': connected!'
-            if j == 1:
+            if j == 2:
                 print self.ble_adr, ': No route to host, is USB dongle plugged in?'
                 self.cleanup()
-            if j == 2:
+            if j == 3:
                 print self.ble_adr, ': Device busy, is something else already connected to it?'
                 c = True
                 while c:
