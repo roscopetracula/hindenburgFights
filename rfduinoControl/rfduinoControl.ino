@@ -11,6 +11,7 @@
 #define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
 #define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
+#define BLESEND RFduinoBLE.send
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -124,7 +125,14 @@ void RFduinoBLE_onDisconnect() {
   testMotors(0x3F, 50);
 }
 
-
+void sendDouble(char *inBuf, int len) {
+  char outBuf[256];
+  for (int i=0; i<128 && i < len; i++) {
+    outBuf[i*2] = inBuf[i];
+    outBuf[i*2+1] = inBuf[i];
+  }
+  RFduinoBLE.send(outBuf, len*2);
+}
 
 /*
 radio messages should be two hearder bytes [protoVersion, msgCount]
@@ -137,6 +145,10 @@ void RFduinoBLE_onReceive(char *data, int len) {
   unsigned long previousPingMillis = lastPingMillis;
   lastPingMillis=millis();
   
+  if (len < 2) {
+    DBGPRINTF("Malformed message, length %d < 2.\n", len);
+  }
+
   // Receive protocol version and message counter, and adjust length and data start accordingly.
   char protoVersion = *data++;
   char msgCounter = *data++;
@@ -151,8 +163,9 @@ void RFduinoBLE_onReceive(char *data, int len) {
 #endif
 
   // Transmit debug ack message.  Currently disabled.
-  // sprintf(buf, "ack %02x", msgCounter);
-  // RFduinoBLE.send(buf, strlen(buf));
+  char buf[256];
+  sprintf(buf, "ack %02x", msgCounter);
+  BLESEND(buf, strlen(buf));
   
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
