@@ -1,15 +1,24 @@
 #include <Wire.h>	
 #include <RFduinoBLE.h>
+#include "rfduinoControl.h"
 
-// Motor addresses.
+// Tuning and timeouts.
+#define CONNECTION_TIMEOUT 1000 /* Time (ms) with no received messages before all motors are turned off. */
+#define SERIAL_ENABLE      1    /* 0 to disable all serial communications. Watch out for loss of side effects in DBGPRINT* calls. */
+#define DEBUG_RECEIVE_LONG 0    /* 1 to print extended receive messages; 0 to just print '@'. */
+
+// Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
+#define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
+#define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
+#define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
+
+// Motor and other i2c addresses.
 #define MOTOR1 0x63
 #define MOTOR2 0x64
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
 #define PROTOCOL_VERSION 0
-#define MOTOR_TIMEOUT 1000
-#define IGNITER_TIMEOUT 1000
 #define V_SET 0x3f // 3f = 5.06, or ~20v max output.
 
 // Pin assignments.
@@ -20,22 +29,39 @@
 #define IGNITER_PIN 2
 
 byte motorIndexes[3] = {MOTOR1,MOTOR2,MOTOR3};
-byte motorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
-byte igniterState = 0;
+byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+byte nextMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+byte igniterStateByte = 0;
 byte blimpTriggerState = 0;
-byte controllerTriggerState = 0;
+byte curControllerTriggerState = 0;
+byte nextControllerTriggerState = 0;
 byte expectedMsgCounter = 0xff;
-int lastPing;
-int motorMillis = 0;
-int igniterMillis = 0;
+igniterStateEnum igniterState = IGNITER_STATE_LOCKED;
+unsigned long lastPingMillis = 0;
+unsigned long motorMillis = 0;
+unsigned long igniterLastOn = 0;
+unsigned long igniterTriggerReleased = 0;
 bool timeoutPossible = 0;
 bool isConnected = false;
-uint8_t wireAck = 0;
 
+#if SERIAL_ENABLE
+#define DBGPRINT(...) Serial.print(__VA_ARGS__)
+#define DBGPRINTLN(...) Serial.println(__VA_ARGS__)
+#define DBGPRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+#define DBGPRINT(...) {}
+#define DBGPRINTLN(...) {}
+#define DBGPRINTF(...) {}
+#endif
 
 void setup()
 {
-  Serial.println("Blimp booting...");
+#if SERIAL_ENABLE
+  Serial.begin(9600);
+  DBGPRINTLN("Blimp booting...");
+#else
+  Serial.end();
+#endif
   pinMode(FAULT_PIN, INPUT);
   pinMode(IGNITER_PIN, OUTPUT);
   pinMode(TRIGGER_PIN, INPUT);
@@ -44,37 +70,39 @@ void setup()
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
   delay(20);
-  Serial.begin(9600);
   delay(20);
-  lastPing = millis();
 
   // Do the motor dance.
   testMotors(0x3F, 200);
-  Serial.println("ready to go!"); 
+  DBGPRINTLN("ready to go!"); 
 }
 
 void loop()
 {
   motorMillis = millis();
-
+  
   // Check for any faults from the motor controllers and clear the ones we find.
   if (digitalRead(FAULT_PIN) == LOW) {
-    Serial.println(" ----FAULT----  ");
+    DBGPRINTLN(" ----FAULT----  ");
     getFault(MOTOR1, true);
     getFault(MOTOR2, true);
     getFault(MOTOR3, true);
   }
-    
-  // Check if the trigger has changed state, then check if the Igniter needs to be turned on or off.
-  updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
-  updateIgniterState();
 
-  // Time out and shut everything down if we haven't heard from the transmitter in too long.
-  if ((motorMillis - lastPing) > MOTOR_TIMEOUT && timeoutPossible == 1){
-    initDevices();
+  // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that motorMillis can actually be less than lastPingMillis, as receives are asynchronous. 
+  if (motorMillis - lastPingMillis > CONNECTION_TIMEOUT && motorMillis > lastPingMillis && timeoutPossible == 1) {
+    DBGPRINTLN(" TIMED OUT ");
     timeoutPossible = 0; //can only timeout once
-    Serial.println(" TIMED OUT ");
+    initDevices();
   }
+
+  // Process any motor updates.
+  processAllMotorUpdates();
+  
+  // Check if the triggers have changed state, then check if the Igniter needs to be turned on or off.
+  updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
+  updateControllerTrigger(nextControllerTriggerState);
+  updateIgniterState();
 }
 
 
@@ -85,13 +113,13 @@ void loop()
 
 void RFduinoBLE_onConnect() {
   isConnected = true;
-  Serial.println("connected");
+  DBGPRINTLN("connected");
   testMotors(0x3F, 100);
 }
 
 void RFduinoBLE_onDisconnect() {
   isConnected = false;
-  Serial.println("disconnected, turning everything off");
+  DBGPRINTLN("disconnected, turning everything off");
   resetState();
   testMotors(0x3F, 50);
 }
@@ -106,16 +134,21 @@ for motor channels (00-02) it will be [motorNum,motorDirectionCode,motorSpeed]
 for igniter channel (03) it will be [channelNum,duration1,duration2]
 */
 void RFduinoBLE_onReceive(char *data, int len) {
-  lastPing=millis();
+  unsigned long previousPingMillis = lastPingMillis;
+  lastPingMillis=millis();
   
   // Receive protocol version and message counter, and adjust length and data start accordingly.
   char protoVersion = *data++;
   char msgCounter = *data++;
   len -= 2;
   
+#if DEBUG_RECEIVE_LONG
   char buf[256];
-  sprintf(buf, "message received: [p:%02x] [c:%02x] [l:%d]\n", protoVersion, msgCounter, len);
-  Serial.print(buf);
+  sprintf(buf, "|message received [%d]: [p:%02x] [c:%02x] [l:%d]|\n", lastPingMillis - previousPingMillis, protoVersion, msgCounter, len);
+  DBGPRINT(buf);
+#else
+  DBGPRINT("@");
+#endif
 
   // Transmit debug ack message.  Currently disabled.
   // sprintf(buf, "ack %02x", msgCounter);
@@ -123,18 +156,18 @@ void RFduinoBLE_onReceive(char *data, int len) {
   
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
-    Serial.printf("VERSION MISMATCH: Expected %d, received %d.\n", 0, PROTOCOL_VERSION);
+    DBGPRINTF("VERSION MISMATCH: Expected %d, received %d.\n", 0, PROTOCOL_VERSION);
     return;
   }
 
   // Check for any lost messages.
   if (msgCounter == 0xff) {
     // 0xff means a new connection, and we start at 0 from there.
-    Serial.println("New connection received.");
+    DBGPRINTLN("New connection received.");
     expectedMsgCounter = 0x00;
   } else if (expectedMsgCounter == 0xff) {
     // If we received an ongoing counter but haven't seen a start message, just note it.
-    Serial.printf("Unexpected counter %d with no start message.\n", msgCounter);
+    DBGPRINTF("Unexpected counter %d with no start message.\n", msgCounter);
     expectedMsgCounter = (msgCounter + 1) % 255;
   } else if (msgCounter == expectedMsgCounter) {
     // All is proceeding as normal.
@@ -144,7 +177,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
     char lostMessages = msgCounter - expectedMsgCounter;
     if (lostMessages < 0)
       lostMessages += 255;      
-    Serial.printf("LOST %d MESSAGES. (Expected counter %d, received %d.)\n", 
+    DBGPRINTF("LOST %d MESSAGES. (Expected counter %d, received %d.)\n", 
       lostMessages, expectedMsgCounter, msgCounter);
     expectedMsgCounter = (msgCounter + 1) % 255;
   }
@@ -153,26 +186,31 @@ void RFduinoBLE_onReceive(char *data, int len) {
   // and any remainder is ignored.
   for (int cmdStart=0; cmdStart+3 <= len; cmdStart+=3)
   {
-    // If it's a motor command, parse it.  
-    // If it's an igniter command and the state has changed, update the igniter.
-    // State changes are identified in updateControllerTrigger() and receiveMotorCommand().
+    // Store motor or trigger states in the next state; the devices will be updated in the main loop.      
     if (0x00<=data[cmdStart+0] && data[cmdStart+0]<=0x02) {
-      receiveMotorCommand(data[cmdStart+0], motorIndexes[data[cmdStart+0]], data[cmdStart+1], data[cmdStart+2]);
+      nextMotorStates[data[cmdStart+0]][0] = data[cmdStart+1];
+      nextMotorStates[data[cmdStart+0]][1] = data[cmdStart+2];
     }
     else if (data[cmdStart+0] == 0x03) {
-      updateControllerTrigger(data[cmdStart+1]);
+      nextControllerTriggerState = data[cmdStart+1];
     }
   }
   // now that we've recieved valid data it's possible to timeout.
   timeoutPossible = 1;
 }
 
+inline byte motorNumFromIndex(byte motorIndex) {
+  for (int i=0; i<3; i++)
+    if (motorIndexes[i] == motorIndex)
+      return i;
+  return -1;
+}
 
-void receiveMotorCommand(byte motorNum, byte motorIndex, uint8_t value, uint8_t speed) {
+void processMotorUpdate(byte motorNum, byte motorIndex, uint8_t value, uint8_t speed) {
   
   // If the value has not changed, simply return.
-  if (motorStates[motorNum][0] == value &&
-      motorStates[motorNum][1] == speed)
+  if (curMotorStates[motorNum][0] == value &&
+      curMotorStates[motorNum][1] == speed)
       return;
       
   // Otherwise, update the motor setting and store the new values.
@@ -183,52 +221,122 @@ void receiveMotorCommand(byte motorNum, byte motorIndex, uint8_t value, uint8_t 
   } else {
     setBrake(motorIndex);
   }
-  motorStates[motorNum][0] = value;
-  motorStates[motorNum][1] = speed;
+  curMotorStates[motorNum][0] = value;
+  curMotorStates[motorNum][1] = speed;
+}
+
+// Try to update all motor states.  State differencing is done in processMotorUpdate.
+void processAllMotorUpdates(void) {
+  for (int i=0; i<3; i++) {
+    processMotorUpdate(i, motorIndexes[i], nextMotorStates[i][0], nextMotorStates[i][1]);
+  }
 }
 
 void setIgniter(byte igniterCode) {
   if (igniterCode==0x01){
-    digitalWrite(IGNITER_PIN,HIGH);
-    igniterMillis=millis();
+      digitalWrite(IGNITER_PIN,HIGH);
+      DBGPRINTLN("IGNITER ON");
     } else {
       digitalWrite(IGNITER_PIN,LOW);
+      DBGPRINTLN("IGNITER OFF");
     }
-  igniterState = igniterCode;
-  Serial.printf("set igniter %d\n", igniterCode);
+  igniterStateByte = igniterCode;
+}
+
+void updateIgniter(byte igniterCode) {
+  if (igniterCode == igniterStateByte)
+    return;
+  else
+    setIgniter(igniterCode);
 }
 
 void updateIgniterState(void) {
-  // Treat the controller and trigger together.
-  byte igniterTriggered = isConnected && (controllerTriggerState || blimpTriggerState);
+  // Treat the controller and trigger as a single combined trigger.
+  bool igniterTriggered = curControllerTriggerState || blimpTriggerState;
+  unsigned int curMillis = millis();
   
-  if (igniterTriggered) {
-    igniterMillis = millis();
-    
-    if (!igniterState) {
-      Serial.println("igniter turned on!");
-      setIgniter(0x01);
-    }
-  } else if (igniterState && millis()-igniterMillis > IGNITER_TIMEOUT){
-    // If the igniter has been on for long enough, turn it off.
-    Serial.println("igniter timed out, turning it off.");
-    setIgniter(0x00);
-  } 
-}
-
-void updateControllerTrigger(byte igniterCode) {
-  if (igniterCode != controllerTriggerState) {
-    controllerTriggerState = igniterCode;
-    Serial.printf("controller trigger state change: %d\n", igniterCode);
-    updateIgniterState();
+  if (!isConnected && igniterState != IGNITER_STATE_LOCKED) {
+    DBGPRINTLN("we're disconnected, locking the igniter");
+    igniterState = IGNITER_STATE_LOCKED;
+  }  
+ 
+  switch (igniterState) {
+    case IGNITER_STATE_LOCKED:
+      if (isConnected) {
+        // We're connected, unlock the igniter.
+        igniterState = IGNITER_STATE_OFF;
+      } else if (igniterState) {
+        // We're locked but the igniter is on, turn it off.
+        DBGPRINTLN("igniter is locked but on, turning it off");
+        setIgniter(0x00);
+      }
+      break;
+    case IGNITER_STATE_OFF:
+      if (igniterTriggered) {
+        DBGPRINTLN("igniter triggered, turning it on");
+        setIgniter(0x01);     
+        igniterLastOn = curMillis;
+        igniterState = IGNITER_STATE_ON;
+      }
+      break;
+    case IGNITER_STATE_ON:
+      if (igniterTriggered) {
+        // THE TRIGGER IS ON. If it's been on too long, turn it off.
+        if (curMillis > igniterLastOn + IGNITER_MAXIMUM_TIME) {
+          DBGPRINTF("igniter has been on too long [%d ms on], moving to cooldown\n", curMillis - igniterLastOn);
+          setIgniter(0x00);
+          igniterState = IGNITER_STATE_COOLDOWN;
+        }
+        // Otherwise, just leave it on.
+      } else {
+        // THE TRIGGER IS OFF. Move to the turning off state.
+        DBGPRINTF("trigger released, starting turn-off process [%d ms on]\n", curMillis - igniterLastOn);
+        igniterState = IGNITER_STATE_TURNING_OFF;
+        igniterTriggerReleased = curMillis;
+      }
+      break;
+    case IGNITER_STATE_TURNING_OFF:     
+      if (igniterTriggered) {
+        // If we're re-triggerd, just go back to the ON state and continue as normal.
+        DBGPRINTLN("igniter re-triggered, returning to ON state");
+        igniterState = IGNITER_STATE_ON;
+      } else if (curMillis > igniterLastOn + IGNITER_MAXIMUM_TIME) {
+        // If we're past the maximum time, jump right to off.
+        DBGPRINTF("igniter has been on too long [%d ms on] and trigger is released, turning off\n", curMillis - igniterLastOn);
+        igniterState = IGNITER_STATE_OFF;
+        setIgniter(0x00);
+      } else if (curMillis > igniterLastOn + IGNITER_MINIMUM_TIME && 
+                 curMillis > igniterTriggerReleased + IGNITER_RELEASE_TIME) {
+         // If we're past the minimum on time and the release time, turn the igniter off.
+         DBGPRINTF("trigger released for sufficient time [%d ms on], turning off\n", curMillis - igniterLastOn);
+         setIgniter(0x00);
+         igniterState = IGNITER_STATE_OFF;
+      }
+      break;
+    case IGNITER_STATE_COOLDOWN:
+      if (!igniterTriggered) {
+        // Trigger has been released.  Just transition to off state.
+        DBGPRINTLN("trigger released, moving from cooldown to off");
+        igniterState = IGNITER_STATE_OFF;
+      }
+      break;
+    default:
+      DBGPRINTF("*** UNKNOWN IGNITER STATE: %d\n", igniterState);
+      break;
   }
 }
 
-void updateBlimpTrigger(byte igniterCode) {
-  if (igniterCode != blimpTriggerState) {
-    blimpTriggerState = igniterCode;
-    Serial.printf("blimp trigger state change: %d\n", igniterCode);
-    updateIgniterState();
+void updateControllerTrigger(byte triggerCode) {
+  if (triggerCode != curControllerTriggerState) {
+    curControllerTriggerState = triggerCode;
+    DBGPRINTF("controller trigger state change: %d\n", triggerCode);
+  }
+}
+
+void updateBlimpTrigger(byte triggerCode) {
+  if (triggerCode != blimpTriggerState) {
+    blimpTriggerState = triggerCode;
+    DBGPRINTF("blimp trigger state change: %d%s\n", triggerCode, (triggerCode == 1 && igniterState == IGNITER_STATE_LOCKED) ? " (but IGNITER_STATE_LOCKED)" : "");
   }
 }
 
@@ -236,8 +344,8 @@ void sendMessage(byte motor, uint8_t value, char *msg) {
   Wire.beginTransmission(motor);
   Wire.write(CONTROL);
   Wire.write(value);
-  wireAck = Wire.endTransmission();
-  Serial.printf("set motor %d: %s\n", motor, msg);
+  byte wireAck = Wire.endTransmission();
+  DBGPRINTF("motor %d %s\n", motorNumFromIndex(motor), msg);
 }
 
 void setCoast(byte thisMotor){
@@ -260,48 +368,52 @@ void setBrake(byte thisMotor){
   sendMessage(thisMotor, value, "brake"); 
 }
 
-void getFault(int thisMotor, bool shouldClearFault){
-  uint8_t RegisterFault;
-
+void getFault(int thisMotor, bool shouldClearFault) {
+  uint8_t registerFault;
+  uint8_t totalRegisterFaults = 0;
+  
   Wire.beginTransmission(thisMotor);
   Wire.write(FAULT);
-  Serial.printf("Motor %d faults (err %d): ", thisMotor, Wire.endTransmission());
+  byte wireAck = Wire.endTransmission();
 
   Wire.requestFrom(thisMotor,1);
-  while(Wire.available()){
-    RegisterFault = Wire.read();
-    Serial.print(RegisterFault, HEX);
-    Serial.print(" (");
+  while(Wire.available()) {
+    registerFault = Wire.read();
+    totalRegisterFaults |= registerFault;
+    if (registerFault != 0) {
+      DBGPRINTF("Motor %d faults (err %d): ", motorNumFromIndex(thisMotor), wireAck);
+      DBGPRINT(registerFault, HEX);
+      DBGPRINT(" (");
 
-    if(RegisterFault & 0x01) //fault bit
-      Serial.print(" FAULT ");
+      if(registerFault & 0x01) //fault bit
+        DBGPRINT(" FAULT ");
 
-    if(RegisterFault & 0x02) //OCP event
-      Serial.print(" OCP ");
+      if(registerFault & 0x02) //OCP event
+        DBGPRINT(" OCP ");
 
-    if(RegisterFault & 0x04) //UVLO event
-      Serial.print(" UVLO ");
+      if(registerFault & 0x04) //UVLO event
+        DBGPRINT(" UVLO ");
 
-    if(RegisterFault & 0x08) //OTS event
-      Serial.print(" OTS ");
+      if(registerFault & 0x08) //OTS event
+        DBGPRINT(" OTS ");
 
-    if(RegisterFault & 0x10) //ILIMIT event
-      Serial.print(" ILIMIT ");
+      if(registerFault & 0x10) //ILIMIT event
+        DBGPRINT(" ILIMIT ");
 
-    Serial.print(") ");
+      DBGPRINTLN(") ");
+    }
   }
-  Serial.println();
-
-  if (shouldClearFault) {
+  // If we had any faults and we are supposed to clear them, do so.
+  if (shouldClearFault && totalRegisterFaults != 0)
     clearFault(thisMotor);
-  }
 }
 
 void clearFault(byte thisMotor){
   Wire.beginTransmission(thisMotor);
   Wire.write(FAULT);
   Wire.write(0x80); // CLEAR bit clears faults
-  Serial.printf("clear fault on motor %d: %d\n", thisMotor, Wire.endTransmission());
+  byte wireAck = Wire.endTransmission();
+  DBGPRINTF("clear fault on motor %d: %d\n", motorNumFromIndex(thisMotor), wireAck);
 }
 
 void clearAllFaults() {
@@ -322,9 +434,9 @@ void resetState(void) {
   initDevices();
   for (int i=0; i<3; i++)
     for (int j=0; j<2; j++)
-      motorStates[i][i] = 0;
+      curMotorStates[i][i] = 0;
   blimpTriggerState = 0;
-  controllerTriggerState = 0;
+  curControllerTriggerState = 0;
   expectedMsgCounter = 0xff;
 }
 
