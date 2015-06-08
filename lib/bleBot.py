@@ -32,7 +32,15 @@ class bleBot():
             return self
 
         print "Preparing to connect. Address: " + self.ble_adr
-        self.btlePeripheral.connect(self.ble_adr, btle.ADDR_TYPE_RANDOM)
+        try:
+            self.btlePeripheral.connect(self.ble_adr, btle.ADDR_TYPE_RANDOM)
+        except OSError:
+            print "------------------------------------------------------"
+            print "OSError raised.  bluepy-helper is likely missing."
+            print "To compile, run \"make\" from bluepy/bluepy directory."
+            print "------------------------------------------------------"
+            raise
+        # We should handle bluepy.bluepy.btle.BTLEException here.
         self.btlePeripheral.setDelegate(self)
 
         print "connection attempt complete, status:", self.btlePeripheral.status()
