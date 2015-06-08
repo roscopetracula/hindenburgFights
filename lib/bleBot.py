@@ -14,7 +14,7 @@ class bleBot():
         # Connect to the remote BLE device.
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
-        self.btleDebug = True
+        self.btleDebug = False
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
