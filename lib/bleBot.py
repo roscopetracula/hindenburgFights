@@ -26,8 +26,8 @@ class bleBot:
 
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
-        self.igniterState = ("00","00") # send ["00",xx] for on, anything else for off
-        self.lastTxIgniterState = ("00","00") # send ["00",xx] for on, anything else for off
+        self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
+        self.lastTxIgniterState = ("00","00") # send ["01",xx] for on, anything else for off
         self.lastTxTime = 0
         self.counter = 0xff
 
@@ -185,10 +185,11 @@ class bleBot:
             tmpMsg += "03"+"".join(self.igniterState)
             self.lastTxIgniterState = self.igniterState
         if tmpMsg != "":
-            self.sendMessage(tmpMsg)
-
-    def reTxState(self):
-        if time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
+            # self.sendMessage(tmpMsg) # Use this to just send differences.
+            self.reTxState(True)         # Use this to send all changes.
+            
+    def reTxState(self, force = False):
+        if force or time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
             #retransmit any states that haven't been sent in a while
             tmpMsg = ""
             for i in range(3):
