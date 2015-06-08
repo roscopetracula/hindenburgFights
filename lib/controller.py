@@ -142,7 +142,7 @@ class XboxController(Controller):
         if nowAxisState != self.axisState:
             self.bleBlimp.txStateChanges()
             self.axisState = nowAxisState
-            print nowAxisState
+            # print nowAxisState
 
 
 def numToMotorCode(x):
