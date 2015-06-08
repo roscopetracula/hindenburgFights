@@ -11,7 +11,8 @@
 #define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
 #define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
-#define BLESEND RFduinoBLE.send
+#define BLESEND(data, len) RFduinoBLE.send(data, len)
+#define BLESENDSTR(str) RFduinoBLE.send(str, strlen(str))
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -162,10 +163,10 @@ void RFduinoBLE_onReceive(char *data, int len) {
   DBGPRINT("@");
 #endif
 
-  // Transmit debug ack message.  Currently disabled.
+  // Transmit debug ack message.
   char buf[256];
   sprintf(buf, "ack %02x", msgCounter);
-  BLESEND(buf, strlen(buf));
+  BLESENDSTR(buf);
   
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
@@ -394,26 +395,27 @@ void getFault(int thisMotor, bool shouldClearFault) {
     registerFault = Wire.read();
     totalRegisterFaults |= registerFault;
     if (registerFault != 0) {
-      DBGPRINTF("Motor %d faults (err %d): ", motorNumFromIndex(thisMotor), wireAck);
-      DBGPRINT(registerFault, HEX);
-      DBGPRINT(" (");
-
+      char buf[256];
+      snprintf(buf, 256, "Motor %d faults (err %d): %02x (", motorNumFromIndex(thisMotor), wireAck, registerFault);
+      
       if(registerFault & 0x01) //fault bit
-        DBGPRINT(" FAULT ");
+        strncat(buf, " FAULT ", 256);
 
       if(registerFault & 0x02) //OCP event
-        DBGPRINT(" OCP ");
+        strncat(buf, " OCP ", 256);
 
       if(registerFault & 0x04) //UVLO event
-        DBGPRINT(" UVLO ");
+        strncat(buf, " UVLO ", 256);
 
       if(registerFault & 0x08) //OTS event
-        DBGPRINT(" OTS ");
+        strncat(buf, " OTS ", 256);
 
       if(registerFault & 0x10) //ILIMIT event
-        DBGPRINT(" ILIMIT ");
+        strncat(buf, " ILIMIT ", 256);
 
-      DBGPRINTLN(") ");
+      strncat(buf, ") ", 256);
+      DBGPRINTLN(buf);
+      BLESENDSTR(buf);      
     }
   }
   // If we had any faults and we are supposed to clear them, do so.
