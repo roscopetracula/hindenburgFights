@@ -47,6 +47,13 @@ class bleBot():
             print "To compile, run \"make\" from bluepy/bluepy directory."
             print "------------------------------------------------------"
             raise
+        except btle.BTLEException:
+            print "----------------------------------------------------------------"
+            print "BTLEException raised.  bluepy-helper may be a zombie."
+            print "Try running \"killall bluepy-helper\" before running this again."
+            print "----------------------------------------------------------------"
+            raise
+        
         # We should handle bluepy.bluepy.btle.BTLEException here.
         self.btlePeripheral.setDelegate(self)
         print "connection attempt complete, status:", self.btlePeripheral.status()
