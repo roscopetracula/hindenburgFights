@@ -11,8 +11,6 @@
 #define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
 #define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
-#define BLESEND(data, len) RFduinoBLE.send(data, len)
-#define BLESENDSTR(str) RFduinoBLE.send(str, strlen(str))
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -39,6 +37,7 @@ byte curControllerTriggerState = 0;
 byte nextControllerTriggerState = 0;
 byte expectedMsgCounter = 0xff;
 igniterStateEnum igniterState = IGNITER_STATE_LOCKED;
+int curRSSI = 0;
 unsigned long lastPingMillis = 0;
 unsigned long motorMillis = 0;
 unsigned long igniterLastOn = 0;
@@ -77,6 +76,30 @@ void setup()
   // Do the motor dance.
   testMotors(0x3F, 200);
   DBGPRINTLN("ready to go!"); 
+}
+
+// Send data, even if it is too long for a block.
+void bleSendOne(const char *data, int len) {
+  RFduinoBLE.send(data, len);
+}
+
+// Send al data in a block, splitting it into 20-byte segments where necessary.
+void bleSendAll(const char *data, int len) {
+  while (len > 0) {
+    bleSendOne(data, len > 20 ? 20 : len);
+    len -= 20;
+    data += 20; 
+  }
+}
+
+// Send a string of any length, including terminating null, splitting it into 20-byte segments where necessary.
+void bleSendStr(const char *str) {
+  bleSendAll(str, strlen(str)+1);
+}
+
+// Store any updates to rssi.
+void RFduinoBLE_onRSSI(int rssi) {
+  curRSSI = rssi;
 }
 
 void loop()
@@ -157,7 +180,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
   
 #if DEBUG_RECEIVE_LONG
   char buf[256];
-  sprintf(buf, "|message received [%d]: [p:%02x] [c:%02x] [l:%d]|\n", lastPingMillis - previousPingMillis, protoVersion, msgCounter, len);
+  snprintf(buf, 256, "|message received [%d]: [p:%02x] [c:%02x] [l:%d]|\n", lastPingMillis - previousPingMillis, protoVersion, msgCounter, len);
   DBGPRINT(buf);
 #else
   DBGPRINT("@");
@@ -165,8 +188,9 @@ void RFduinoBLE_onReceive(char *data, int len) {
 
   // Transmit debug ack message.
   char buf[256];
-  sprintf(buf, "ack %02x", msgCounter);
-  BLESENDSTR(buf);
+  int curTemp = (int)(RFduino_temperature(FAHRENHEIT)*10.0);
+  snprintf(buf, 256, "ack %02x (%d dBm) (%d.%d\u00b0F)", msgCounter, curRSSI, curTemp/10, curTemp % 10);
+  bleSendStr(buf);
   
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
@@ -415,7 +439,7 @@ void getFault(int thisMotor, bool shouldClearFault) {
 
       strncat(buf, ") ", 256);
       DBGPRINTLN(buf);
-      BLESENDSTR(buf);      
+      bleSendStr(buf);      
     }
   }
   // If we had any faults and we are supposed to clear them, do so.

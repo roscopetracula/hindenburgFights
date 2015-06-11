@@ -1,5 +1,5 @@
-import pexpect
 import Queue
+import string
 import select
 import socket
 import threading
@@ -21,9 +21,16 @@ class bleBot():
         self.lastTxIgniterState = ("00","00") # send ["01",xx] for on, anything else for off
         self.lastTxTime = 0
         self.counter = 0xff
+        self.curReceiveString = ""
 
     def handleNotification(self, cHandle, data):
-        print "message received [", cHandle, "]: ", data
+        if (cHandle == 14):
+            self.curReceiveString = self.curReceiveString + data
+            if (string.find(data, "\x00") != -1):
+                print "rcv>", self.curReceiveString
+                self.curReceiveString = ""
+        else:
+            print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
 
     def connect( self ):
 
@@ -42,7 +49,6 @@ class bleBot():
             raise
         # We should handle bluepy.bluepy.btle.BTLEException here.
         self.btlePeripheral.setDelegate(self)
-
         print "connection attempt complete, status:", self.btlePeripheral.status()
         
         # If debugging, print info about connection.  We don't
