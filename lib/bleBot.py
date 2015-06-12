@@ -16,10 +16,13 @@ class bleBot():
     RETURN_MSG_FAULT = 0x02   
 
     def __init__( self, ble_adr ):
-        # Connect to the remote BLE device.
+        # Set up connection-related data.
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
+        self.isConnected = False
+        self.curRSSI = 0
+        self.curTemp = 0.0
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
@@ -27,7 +30,7 @@ class bleBot():
         self.lastTxTime = 0
         self.counter = 0xff
         self.curReceiveString = ""
-
+        
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
             print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
@@ -44,10 +47,12 @@ class bleBot():
                 print "rcv>", self.curReceiveString
                 self.curReceiveString = ""
         elif rcvCmd == self.RETURN_MSG_UPDATE:
+            # The update message is just a 4 byte RSSI integer and then a 4 byte temperature float.
             self.curRSSI = struct.unpack("<i", "".join(data[0:4]))[0]
             self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
             print "update: rssi {:d}, temp {:.1f}".format(self.curRSSI, self.curTemp)
         elif rcvCmd == self.RETURN_MSG_FAULT:
+            # Decode the raw fault data.
             faultMotor = ord(data[0])
             faultValue = ord(data[1])
             faults = [];
@@ -71,24 +76,34 @@ class bleBot():
 
         if (self.ble_adr == "dummy"):
             print "Dummy connection established."
+            self.isConnected = True
             return self
 
-        print "Preparing to connect. Address: " + self.ble_adr
+        self.isConnected = False
+        print self.ble_adr, 'attempting to CONNECT'
         try:
             self.btlePeripheral.connect(self.ble_adr, btle.ADDR_TYPE_RANDOM)
-        except OSError:
-            print "------------------------------------------------------"
-            print "OSError raised.  bluepy-helper is likely missing."
-            print "To compile, run \"make\" from bluepy/bluepy directory."
-            print "------------------------------------------------------"
-            raise
-        except btle.BTLEException:
-            print "----------------------------------------------------------------"
-            print "BTLEException raised.  bluepy-helper may be a zombie."
-            print "Try running \"killall bluepy-helper\" before running this again."
-            print "----------------------------------------------------------------"
-            raise
-        
+        except OSError as e:
+            print "-------------------------------------------------------------------"
+            print "CONNECTION FAILED"
+            print e
+            print "OSError raised.  bluepy-helper is likely missing or not executable."
+            print "To compile, run \"make clean; make\" from bluepy/bluepy directory."
+            print "-------------------------------------------------------------------"
+            print e
+            return self
+        except btle.BTLEException as e:
+            if (e.code == btle.BTLEException.DISCONNECTED):
+                print "----------------------------------------------------------------------"
+                print "CONNECTION FAILED"
+                print e
+                print "BTLEException raised.  bluepy-helper may be a zombie."
+                print "Try running \"killall bluepy-helper\" before running blimpControl again."
+                print "----------------------------------------------------------------------"
+                return self
+            else:
+                raise
+
         # We should handle bluepy.bluepy.btle.BTLEException here.
         self.btlePeripheral.setDelegate(self)
         print "connection attempt complete, status:", self.btlePeripheral.status()
@@ -104,6 +119,7 @@ class bleBot():
                     print "CHARACTERISTIC ",char.getHandle(),": ",char," ",char.propertiesToString()
 
         self.btlePeripheral.writeCharacteristic(0x000f, "0300".decode("hex"), False)
+        self.isConnected = True
         return self
 
 
@@ -111,38 +127,54 @@ class bleBot():
         # in BLE gatttool,
         # for IMUduino: char-write-cmd 0x000b 41424344
         # for RFduino: char-write-cmd 0x0011 41424344555555
-        print self.ble_adr, value
+        print "{:s}> {:s} {:s}".format(self.isConnected and "snd" or "noconn", self.ble_adr, value)
 
-        # Fake sending if we are ussing a dummy blimp.
+        if (not self.isConnected):
+            return
+        
+        # Fake sending if we are using a dummy blimp.
         if (self.ble_adr == "dummy"):
             return
         
         # Write to the output characteristic.
-        self.btlePeripheral.writeCharacteristic(0x0011, value.decode("hex"), False)
+        try:
+            self.btlePeripheral.writeCharacteristic(0x0011, value.decode("hex"), False)
+        except btle.BTLEException as e:
+            if (e.code == btle.BTLEException.DISCONNECTED):
+                print self.ble_adr, "DISCONNECTED"
+                self.isConnected = False
+                pass
+            else:
+                raise
+            
         return
 
     def cleanup( self ):
-        # If we're using a dummy, just let us know and return.
-        if (self.ble_adr == "dummy"):
-            print "Dummy connection closed."
-            return
 
-        print self.ble_adr, ': attempting to disconnect'
+        # Just disconnect.
+        self.disconnect()
 
-        self.btlePeripheral.disconnect()
         return
 
-    def reconnect( self ):
-        print self.ble_adr, 'attempting to RECONNECT'
+    def disconnect( self ):
 
-        # Simply return if a dummy device is reconnected.
-        if (self.ble_adr == "dummy"):
-            return
+        print self.ble_adr, 'attempting to DISCONNECT'
+        self.isConnected = False
         
-        # Otherwise, send a disconnect commend and re-call connect().
-        self.btlePeripheral.disconnect()
-        self.btlePeripheral.connect(self.ble_adr, btle.ADDR_TYPE_RANDOM)
+        if (self.ble_adr == "dummy"):
+            print "Dummy connection closed."
+            self.isConnected = False
+            return self
 
+        # Disconnect from bluetooth.
+        self.btlePeripheral.disconnect()
+
+    def reconnect( self ):
+        print self.ble_adr, 'attempting to RECONNECT...'
+        
+        # Disconnect and reconnect.
+        self.disconnect()
+        self.connect()
 
     # Sends a message, prepending any protocol data.
     def sendMessage(self, data):
