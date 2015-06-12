@@ -1,15 +1,20 @@
 import Queue
-import string
 import select
 import socket
 import threading
 import time
 import traceback
+import string
+import struct
 from bluepy.bluepy import btle
 
 TRANSMISSION_TIMEOUT = .9
 
 class bleBot():
+    RETURN_MSG_STRING = 0x00
+    RETURN_MSG_UPDATE = 0x01
+    RETURN_MSG_FAULT = 0x02   
+
     def __init__( self, ble_adr ):
         # Connect to the remote BLE device.
         self.ble_adr = ble_adr
@@ -23,15 +28,45 @@ class bleBot():
         self.counter = 0xff
         self.curReceiveString = ""
 
-    def handleNotification(self, cHandle, data):
-        if (cHandle == 14):
+    def handleNotification(self, cHandle, data): 
+        if (cHandle <> 14):
+            print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
+            return
+
+        # First byte is the command; the rest is the actual payload.
+        rcvCmd = ord(data[0])
+        data = data[1:]
+        
+        if rcvCmd == self.RETURN_MSG_STRING:
+            # For strings, print the complete string if there's a null termination,
             self.curReceiveString = self.curReceiveString + data
             if (string.find(data, "\x00") != -1):
                 print "rcv>", self.curReceiveString
                 self.curReceiveString = ""
+        elif rcvCmd == self.RETURN_MSG_UPDATE:
+            self.curRSSI = struct.unpack("<i", "".join(data[0:4]))[0]
+            self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
+            print "update: rssi {:d}, temp {:.1f}".format(self.curRSSI, self.curTemp)
+        elif rcvCmd == self.RETURN_MSG_FAULT:
+            faultMotor = ord(data[0])
+            faultValue = ord(data[1])
+            faults = [];
+            if (faultValue & 0x01):
+                faults.append("FAULT")
+            if (faultValue & 0x02):
+                faults.append("OCP")
+            if (faultValue & 0x04):
+                faults.append("UVLO")
+            if (faultValue & 0x08):
+                faults.append("OTS")
+            if (faultValue & 0x10):
+                faults.append("ILIMIT")
+            
+            print "motor {:d} fault: {:s}".format(faultMotor, faults)
+            
         else:
-            print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
-
+            print "received unknown command:", rcvCmd
+            
     def connect( self ):
 
         if (self.ble_adr == "dummy"):

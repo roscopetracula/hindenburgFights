@@ -5,4 +5,8 @@ enum igniterStateEnum {IGNITER_STATE_LOCKED,      // Igniter forced off regardle
                        IGNITER_STATE_COOLDOWN,    // Igniter has been on for maximum time and cannot fire until it is untriggered.
 };
 
-
+enum returnMsgEnum {RETURN_MSG_STRING = 0x00,
+                    RETURN_MSG_UPDATE = 0x01,
+                    RETURN_MSG_FAULT = 0x02,
+};
+ 

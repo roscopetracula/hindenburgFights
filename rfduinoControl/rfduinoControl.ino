@@ -2,15 +2,21 @@
 #include <RFduinoBLE.h>
 #include "rfduinoControl.h"
 
-// Tuning and timeouts.
+// General timeouts/intevals.
 #define CONNECTION_TIMEOUT 1000 /* Time (ms) with no received messages before all motors are turned off. */
-#define SERIAL_ENABLE      1    /* 0 to disable all serial communications. Watch out for loss of side effects in DBGPRINT* calls. */
-#define DEBUG_RECEIVE_LONG 0    /* 1 to print extended receive messages; 0 to just print '@'. */
+#define UPDATE_INTERVAL    1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
 
+// Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
 #define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
 #define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
+
+// Flags
+#undef  SERIAL_ENABLE           /* Enable serial communications. Watch out for loss of side effects in calls. */
+#undef  DEBUG_RECEIVE_LONG      /* Define to print extended receive messages; 0 to just print '@'. */
+#undef  TRANSMIT_ACK            /* Transmit an acknowledgement after each packet. */
+#undef  TRANSMIT_FAULT_STRING   /* Transmit a string version of the fault in addition to the coded version. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -39,13 +45,15 @@ byte expectedMsgCounter = 0xff;
 igniterStateEnum igniterState = IGNITER_STATE_LOCKED;
 int curRSSI = 0;
 unsigned long lastPingMillis = 0;
-unsigned long motorMillis = 0;
 unsigned long igniterLastOn = 0;
 unsigned long igniterTriggerReleased = 0;
 bool timeoutPossible = 0;
 bool isConnected = false;
+#ifdef UPDATE_INTERVAL
+unsigned long lastUpdateMillis = 0;
+#endif
 
-#if SERIAL_ENABLE
+#ifdef SERIAL_ENABLE
 #define DBGPRINT(...) Serial.print(__VA_ARGS__)
 #define DBGPRINTLN(...) Serial.println(__VA_ARGS__)
 #define DBGPRINTF(...) Serial.printf(__VA_ARGS__)
@@ -57,7 +65,7 @@ bool isConnected = false;
 
 void setup()
 {
-#if SERIAL_ENABLE
+#ifdef SERIAL_ENABLE
   Serial.begin(9600);
   DBGPRINTLN("Blimp booting...");
 #else
@@ -79,22 +87,29 @@ void setup()
 }
 
 // Send data, even if it is too long for a block.
-void bleSendOne(const char *data, int len) {
+inline void bleSendData(const char *data, int len) {
   RFduinoBLE.send(data, len);
-}
+}  
 
-// Send al data in a block, splitting it into 20-byte segments where necessary.
-void bleSendAll(const char *data, int len) {
+// Send all of a string (including null terminator in a block,
+// splitting it into 19-byte segments where necessary.
+void bleSendString(const char *str) {
+  char sendData[20] = {RETURN_MSG_STRING};
+  int len = strlen(str) + 1;
   while (len > 0) {
-    bleSendOne(data, len > 20 ? 20 : len);
-    len -= 20;
-    data += 20; 
+    if (len <= 19) {
+      // Last block.
+      memcpy(sendData+1, str, len);
+      bleSendData(sendData, len+1);
+      len = 0;
+    } else {
+      // Not last block.
+      memcpy(sendData+1, str, 19);
+      bleSendData(sendData, 20);
+      str += 19;
+      len -= 19;
+    }
   }
-}
-
-// Send a string of any length, including terminating null, splitting it into 20-byte segments where necessary.
-void bleSendStr(const char *str) {
-  bleSendAll(str, strlen(str)+1);
 }
 
 // Store any updates to rssi.
@@ -104,7 +119,7 @@ void RFduinoBLE_onRSSI(int rssi) {
 
 void loop()
 {
-  motorMillis = millis();
+  unsigned int loopMillis = millis();
   
   // Check for any faults from the motor controllers and clear the ones we find.
   if (digitalRead(FAULT_PIN) == LOW) {
@@ -114,8 +129,8 @@ void loop()
     getFault(MOTOR3, true);
   }
 
-  // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that motorMillis can actually be less than lastPingMillis, as receives are asynchronous. 
-  if (motorMillis - lastPingMillis > CONNECTION_TIMEOUT && motorMillis > lastPingMillis && timeoutPossible == 1) {
+  // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that loopMillis can actually be less than lastPingMillis, as receives are asynchronous. 
+  if (loopMillis - lastPingMillis > CONNECTION_TIMEOUT && loopMillis > lastPingMillis && timeoutPossible == 1) {
     DBGPRINTLN(" TIMED OUT ");
     timeoutPossible = 0; //can only timeout once
     initDevices();
@@ -128,6 +143,20 @@ void loop()
   updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
   updateControllerTrigger(nextControllerTriggerState);
   updateIgniterState();
+
+#ifdef UPDATE_INTERVAL
+  // Check if it's time to send an update.
+  if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL) {
+     float curTemp = RFduino_temperature(FAHRENHEIT);
+     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp);
+     char buf[bufLen];
+     buf[0] = RETURN_MSG_UPDATE;
+     memcpy(buf+1, &curRSSI, sizeof(curRSSI));
+     memcpy(buf+1+sizeof(curRSSI), &curTemp, sizeof(curTemp));
+     bleSendData(buf, bufLen);
+     lastUpdateMillis = millis();
+   }
+#endif
 }
 
 
@@ -149,14 +178,7 @@ void RFduinoBLE_onDisconnect() {
   testMotors(0x3F, 50);
 }
 
-void sendDouble(char *inBuf, int len) {
-  char outBuf[256];
-  for (int i=0; i<128 && i < len; i++) {
-    outBuf[i*2] = inBuf[i];
-    outBuf[i*2+1] = inBuf[i];
-  }
-  RFduinoBLE.send(outBuf, len*2);
-}
+
 
 /*
 radio messages should be two hearder bytes [protoVersion, msgCount]
@@ -186,11 +208,15 @@ void RFduinoBLE_onReceive(char *data, int len) {
   DBGPRINT("@");
 #endif
 
+#ifdef TRANSMIT_ACK
   // Transmit debug ack message.
   char buf[256];
   int curTemp = (int)(RFduino_temperature(FAHRENHEIT)*10.0);
   snprintf(buf, 256, "ack %02x (%d dBm) (%d.%d\u00b0F)", msgCounter, curRSSI, curTemp/10, curTemp % 10);
-  bleSendStr(buf);
+  bleSendString(buf);
+  char td[2] = {0x00, 'X'};
+  bleSendData(td, 2);
+#endif
   
   // If there is a protocol version mismatch, ignore all messages.
   if (protoVersion != PROTOCOL_VERSION) {
@@ -419,6 +445,11 @@ void getFault(int thisMotor, bool shouldClearFault) {
     registerFault = Wire.read();
     totalRegisterFaults |= registerFault;
     if (registerFault != 0) {
+      // Send a fault report to the client.
+      char sendBuf[3] = {RETURN_MSG_FAULT, motorNumFromIndex(thisMotor), registerFault};
+      bleSendData(sendBuf, 3);
+     
+      // Build a string and send that to the client. 
       char buf[256];
       snprintf(buf, 256, "Motor %d faults (err %d): %02x (", motorNumFromIndex(thisMotor), wireAck, registerFault);
       
@@ -439,8 +470,10 @@ void getFault(int thisMotor, bool shouldClearFault) {
 
       strncat(buf, ") ", 256);
       DBGPRINTLN(buf);
-      bleSendStr(buf);      
-    }
+ #ifdef TRANSMIT_FAULT_STRING
+      bleSendString(buf);      
+ #endif
+      }
   }
   // If we had any faults and we are supposed to clear them, do so.
   if (shouldClearFault && totalRegisterFaults != 0)
