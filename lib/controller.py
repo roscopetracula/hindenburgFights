@@ -4,6 +4,7 @@ from lib.bleBot import bleBot
 import pygame
 from pygame.locals import *
 
+
 def load_controllers():
     return [
         create_controller(controller_config)
@@ -17,8 +18,7 @@ def has_xbox_controller():
     return False
 
 def create_controller(cfg):
-    ble_control = bleBot(cfg['uuid'])
-    ble_control.connect()
+    ble_control = bleBot(cfg['uuid'], cfg['type'])
 
     if cfg['type'] == KEYBOARD:
         controller = KeyboardController(

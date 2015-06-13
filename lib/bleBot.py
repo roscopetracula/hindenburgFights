@@ -7,22 +7,125 @@ import traceback
 import string
 import struct
 from bluepy.bluepy import btle
+from pgu import gui
+from lib.constants import XBOX, KEYBOARD
 
 TRANSMISSION_TIMEOUT = .9
 
+class bleBotGui():
+    WIDTH=320
+    HEIGHT=240
+    AXIS_WIDTH=WIDTH/3
+    BLIMP_OUTER_BORDER=3
+    axisNoMap = {0:1, 1:2, 2:0}
+    axisDirMap = {0:"01", 1:"01", 2:"02"}
+
+    def __init__( self, ble_adr, ble_bot, type ):
+        # State variables.
+        self.isConnected = False
+        
+        # Set up the individual controls.
+        self.bot = ble_bot
+        self.outerFrame = gui.Table()
+        self.outerFrame.tr()
+        self.outerFrame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=1024, style={'border_left':self.BLIMP_OUTER_BORDER, 'border_right':self.BLIMP_OUTER_BORDER, 'border_top':self.BLIMP_OUTER_BORDER})
+        self.frame = gui.Table(width=self.WIDTH, style={'border_left':self.BLIMP_OUTER_BORDER, 'border_right':self.BLIMP_OUTER_BORDER, 'border_bottom':self.BLIMP_OUTER_BORDER})
+        self.outerFrame.tr()
+        self.outerFrame.td(self.frame)
+    
+        # Build the table from the gui parts.
+        #####################################
+
+        # Build the table of axes.
+        self.axisOuterTable = gui.Table()
+        self.frame.tr()
+        self.frame.td(self.axisOuterTable, style={'border_top':1, 'border_bottom':1})
+        self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
+        self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.HSlider(value=0, min=-63, max=63, size=1, width=100), gui.Label("Temp")]
+        self.axisBorders = [{'border_right':1}, {'border_right':1}, {}, {}]
+        self.axisFaultLabel = [gui.Label("No Fault"), gui.Label("No Fault"), gui.Label("No Fault"), gui.Label("No Fault")]
+        # Note that we're currently ignoring the igniter box.
+        self.axisOuterTable.tr()
+        for i in range(0, 3):         
+            self.axisOuterTable.td(self.axisLabels[i], width=self.AXIS_WIDTH, style=self.axisBorders[i])
+        self.axisOuterTable.tr()
+        for i in range(0, 3): 
+            self.axisOuterTable.td(self.axisSliders[i], style=self.axisBorders[i])
+        self.axisOuterTable.tr()
+        for i in range(0, 3): 
+            self.axisOuterTable.td(self.axisFaultLabel[i], style=self.axisBorders[i])
+
+        # Build the status section.
+        self.statusTable = gui.Table()
+        self.rssiLabel = gui.Label("RSSI: ?")
+        self.tempLabel = gui.Label("Temp: ?")
+        self.statusTable.tr()
+        self.statusTable.td(self.rssiLabel, style={'border_right':1}, width=self.WIDTH/2)
+        self.statusTable.td(self.tempLabel, width=self.WIDTH/2)
+        self.frame.tr()
+        self.frame.td(self.statusTable, style={'border_bottom':1})
+                              
+        # Build the table with the connect/reconnect info and buttons.
+        self.connectionTable = gui.Table()
+        self.frame.tr()
+        self.frame.td(self.connectionTable)
+        self.stateLabel = gui.Label("DISCONNECTED")
+        self.connectButtonLabel = gui.Label("Connect")
+        self.connectButton = gui.Button(self.connectButtonLabel)
+        self.connectButton.connect(gui.CLICK,self.connectOrDisconnect,None)
+        self.reconnectButton = gui.Button("Reconnect")
+        self.reconnectButton.connect(gui.CLICK,self.reconnect,None)
+        self.reconnectButton.disabled = True
+        self.connectionTable.tr()
+        self.connectionTable.td(self.stateLabel)
+        self.connectionTable.td(self.reconnectButton)
+        self.connectionTable.td(self.connectButton)
+
+    def setConnected(self, isConnected):
+        self.isConnected = isConnected
+        if isConnected:
+            self.connectButtonLabel.set_text("Disconnect")
+            self.stateLabel.set_text("Connected")
+            self.reconnectButton.disabled = False
+        else:
+            self.connectButtonLabel.set_text("Connect")
+            self.stateLabel.set_text("DISCONNECTED")
+            self.reconnectButton.disabled = True
+
+    def reconnect(self, value):
+        self.bot.reconnect()
+
+    def connectOrDisconnect(self, value):
+        if self.isConnected:
+            self.bot.disconnect()
+        else:
+            self.bot.connect()
+
+    def setAxis(self, axisNo, newDirection, newValue):
+        newValue = int(newValue, 16)
+        axisNo = self.axisNoMap[axisNo]
+        self.axisSliders[axisNo].value =  newValue if newDirection == self.axisDirMap[axisNo] else -newValue
+
+    def updateFaults(self):
+        for i in range(0, 3):
+            if (self.bot.lastFault[i] == 0):
+                self.axisFaultLabel[i].set_text("No Fault")
+            else:
+                self.axisFaultLabel[i].set_text("Fault: {:02X}".format(self.bot.lastFault[i]))
+            
 class bleBot():
     RETURN_MSG_STRING = 0x00
     RETURN_MSG_UPDATE = 0x01
     RETURN_MSG_FAULT = 0x02   
 
-    def __init__( self, ble_adr ):
+    def __init__( self, ble_adr, type ):
         # Set up connection-related data.
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
-        self.isConnected = False
-        self.curRSSI = 0
-        self.curTemp = 0.0
+        self.isConnected = False # We may ultimately need more than two states here.
+        self.curRSSI = "?"
+        self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
@@ -30,6 +133,9 @@ class bleBot():
         self.lastTxTime = 0
         self.counter = 0xff
         self.curReceiveString = ""
+        self.lastFault = [0, 0, 0]
+        self.lastFaultTime = [0, 0, 0]
+        self.gui = bleBotGui(ble_adr, self, type)
         
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
@@ -50,11 +156,16 @@ class bleBot():
             # The update message is just a 4 byte RSSI integer and then a 4 byte temperature float.
             self.curRSSI = struct.unpack("<i", "".join(data[0:4]))[0]
             self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
-            print "update: rssi {:d}, temp {:.1f}".format(self.curRSSI, self.curTemp)
+            self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
+            self.gui.tempLabel.set_text("Temp: {:.1f}\xb0F".format(self.curTemp))
+            print "update> {:s} rssi {:d}, temp {:.1f}".format(self.ble_adr, self.curRSSI, self.curTemp)
         elif rcvCmd == self.RETURN_MSG_FAULT:
             # Decode the raw fault data.
             faultMotor = ord(data[0])
             faultValue = ord(data[1])
+            self.lastFault[faultMotor] = faultValue
+            self.lastFaultTime[faultMotor] = time.time()
+            self.gui.updateFaults()
             faults = [];
             if (faultValue & 0x01):
                 faults.append("FAULT")
@@ -74,9 +185,11 @@ class bleBot():
             
     def connect( self ):
 
+        self.gui.stateLabel.set_text("Connecting...")
         if (self.ble_adr == "dummy"):
-            print "Dummy connection established."
+            print "dummy connection established"
             self.isConnected = True
+            self.gui.setConnected(self.isConnected)
             return self
 
         self.isConnected = False
@@ -91,6 +204,7 @@ class bleBot():
             print "To compile, run \"make clean; make\" from bluepy/bluepy directory."
             print "-------------------------------------------------------------------"
             print e
+            self.gui.setConnected(self.isConnected)
             return self
         except btle.BTLEException as e:
             if (e.code == btle.BTLEException.DISCONNECTED):
@@ -100,11 +214,13 @@ class bleBot():
                 print "BTLEException raised.  bluepy-helper may be a zombie."
                 print "Try running \"killall bluepy-helper\" before running blimpControl again."
                 print "----------------------------------------------------------------------"
+                self.gui.setConnected(self.isConnected)
                 return self
             else:
                 raise
 
-        # We should handle bluepy.bluepy.btle.BTLEException here.
+        self.isConnected = True
+        self.gui.setConnected(self.isConnected)
         self.btlePeripheral.setDelegate(self)
         print "connection attempt complete, status:", self.btlePeripheral.status()
         
@@ -119,7 +235,6 @@ class bleBot():
                     print "CHARACTERISTIC ",char.getHandle(),": ",char," ",char.propertiesToString()
 
         self.btlePeripheral.writeCharacteristic(0x000f, "0300".decode("hex"), False)
-        self.isConnected = True
         return self
 
 
@@ -127,7 +242,7 @@ class bleBot():
         # in BLE gatttool,
         # for IMUduino: char-write-cmd 0x000b 41424344
         # for RFduino: char-write-cmd 0x0011 41424344555555
-        print "{:s}> {:s} {:s}".format(self.isConnected and "snd" or "noconn", self.ble_adr, value)
+        print "{:s}> {:s} {:s}".format("snd" if self.isConnected else "noconn", self.ble_adr, value)
 
         if (not self.isConnected):
             return
@@ -158,16 +273,18 @@ class bleBot():
 
     def disconnect( self ):
 
+        self.gui.stateLabel.set_text("Disconnecting...")
         print self.ble_adr, 'attempting to DISCONNECT'
         self.isConnected = False
-        
-        if (self.ble_adr == "dummy"):
-            print "Dummy connection closed."
-            self.isConnected = False
-            return self
+        self.gui.setConnected(self.isConnected)
 
-        # Disconnect from bluetooth.
-        self.btlePeripheral.disconnect()
+        if (self.ble_adr == "dummy"):
+            self.isConnected = False
+        else: 
+            # Disconnect from bluetooth.
+            self.btlePeripheral.disconnect()
+
+        print self.ble_adr, "connection closed"
 
     def reconnect( self ):
         print self.ble_adr, 'attempting to RECONNECT...'
@@ -217,6 +334,7 @@ class bleBot():
 
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
-
+        self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
+        
     def setIgniterState(self, onOrOff):
         self.igniterState = (onOrOff,"00")
