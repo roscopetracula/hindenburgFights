@@ -27,15 +27,25 @@ def create_controller(cfg):
             cfg['keys']
         )
     else:
+        try:
+            joystick = pygame.joystick.Joystick(cfg['joystick'])
+        except pygame.error as e:
+            if (str(e) == "Invalid joystick device number"):
+                print "xbox controller missing, we should create a fake joystick here"
+                joystick = None
+                raise
+            else:
+                raise
+
         controller = XboxController(
             ble_control,
             cfg['orientation'],
             cfg['igniterAxis'],
-            pygame.joystick.Joystick(
-                cfg['joystick']
-            )
+            joystick
         )
 
+    ble_control.controller = controller
+        
     return controller
 
 class Controller(object):
@@ -96,7 +106,7 @@ class KeyboardController(Controller):
                     motorDirection = "02"
                 self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
 
-        self.bleBlimp.txStateChanges()
+        self.bleBlimp.autoTxUpdate()
 
 
 class XboxController(Controller):
@@ -140,7 +150,7 @@ class XboxController(Controller):
             nowAxisState[3] = "00"
 
         if nowAxisState != self.axisState:
-            self.bleBlimp.txStateChanges()
+            self.bleBlimp.autoTxUpdate()
             self.axisState = nowAxisState
             # print nowAxisState
 

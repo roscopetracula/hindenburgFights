@@ -10,7 +10,8 @@ from bluepy.bluepy import btle
 from pgu import gui
 from lib.constants import XBOX, KEYBOARD
 
-TRANSMISSION_TIMEOUT = .9
+TRANSMISSION_TIMEOUT  = 0.9
+MIN_TRANSMIT_INTERVAL = 0.1
 
 class bleBotGui():
     WIDTH=320
@@ -26,8 +27,8 @@ class bleBotGui():
     PURPLE=(255,0,255)
     YELLOW=(255,255,0)
         
-    axisNoMap = {0:1, 1:2, 2:0}
-    axisDirMap = {0:"01", 1:"01", 2:"02"}
+    axisNoMap = {0:0, 1:2, 2:1}
+    axisDirMap = {0:"01", 1:"01", 2:"01"}
 
     def __init__( self, ble_adr, ble_bot, type ):
         # Set up the individual controls.
@@ -138,6 +139,7 @@ class bleBot():
     def __init__( self, ble_adr, type ):
 
         # Set up connection-related data.
+        self.controller = None
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
@@ -341,7 +343,23 @@ class bleBot():
     def sendToChannel(self, channel, data):
         self.sendMessage(channel+data)
 
-    def txStateChanges(self):
+    def reTxState(self, force = False):
+        if force or time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
+            #retransmit any states that haven't been sent in a while
+            tmpMsg = ""
+            for i in range(3):
+                self.lastTxState[i] = self.motorState[i] 
+                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
+            self.lastTxIgniterState = self.igniterState
+            tmpMsg += "03"+"".join(self.igniterState)
+            self.sendMessage(tmpMsg)
+
+    def autoTxUpdate(self):
+        # Don't send any differences if not enough time has passed.
+        if (time.time() < self.lastTxTime + MIN_TRANSMIT_INTERVAL):
+            return
+
+        # Transmit everything if anything has changed.
         tmpMsg = ""
         for i in range(3):
             if self.lastTxState[i] != self.motorState[i]:
@@ -354,15 +372,6 @@ class bleBot():
             # self.sendMessage(tmpMsg) # Use this to just send differences.
             self.reTxState(True)         # Use this to send all changes.
             
-    def reTxState(self, force = False):
-        if force or time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
-            #retransmit any states that haven't been sent in a while
-            tmpMsg = ""
-            for i in range(3):
-                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
-            tmpMsg += "03"+"".join(self.igniterState)
-            self.sendMessage(tmpMsg)
-
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)

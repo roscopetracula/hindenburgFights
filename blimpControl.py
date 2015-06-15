@@ -103,7 +103,11 @@ while True:
 
         # Always pass the event to the app.
         guiApp.event(event)
-            
+
+    # Check if any controller activity needs to be transmitted.
+    for controller in controllers:
+        controller.bleBlimp.autoTxUpdate()
+        
     # Check for any Xbox controller activity.
     for controller in controllers:
         if isinstance(controller, XboxController):
@@ -112,7 +116,7 @@ while True:
     for controller in controllers:
         controller.retransmit()
 
-    # time.sleep(0.01)
+    # time.sleep(0.05)
 
     # It's not clear if this is the exact set we need, but it appears
     # to work for now.
