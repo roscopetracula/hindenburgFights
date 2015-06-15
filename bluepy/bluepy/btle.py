@@ -248,7 +248,7 @@ class Peripheral:
             if self._helper.poll() is not None:
                 raise BTLEException(BTLEException.INTERNAL_ERROR, "Helper exited")
 
-            if timeout:
+            if timeout != None:
                 fds = self._poller.poll(timeout*1000)
                 if len(fds) == 0:
                     DBG("Select timeout")
@@ -288,7 +288,7 @@ class Peripheral:
                 errcode=resp['code'][0]
                 raise BTLEException(BTLEException.COMM_ERROR, "Error from Bluetooth stack (%s)" % errcode)
             else:
-                raise BTLEException(BTLEException.INTERNAL_ERROR, "Unexpected response (%s)" % respType)
+                raise BTLEException(BTLEException.INTERNAL_ERROR, "Unexpected response (%s) not (%s)" % (respType, wantType))
 
     def status(self):
         self._writeCmd("stat\n")
@@ -301,6 +301,7 @@ class Peripheral:
             raise ValueError("Expected address type public or random, got {}".format(addrType))
         self._startHelper()
         self.deviceAddr = addr
+        self.addrType = addrType
         self._writeCmd("conn %s %s\n" % (addr, addrType))
         rsp = self._getResp('stat')
         while rsp['state'][0] == 'tryconn':
@@ -310,6 +311,26 @@ class Peripheral:
             raise BTLEException(BTLEException.DISCONNECTED,
                                 "Failed to connect to peripheral %s, addr type: %s" % (addr, addrType))
 
+    def connect_async(self, addr, addrType):
+        if len(addr.split(":")) != 6:
+            raise ValueError("Expected MAC address, got %s" % repr(addr))
+        if addrType not in (ADDR_TYPE_PUBLIC, ADDR_TYPE_RANDOM):
+            raise ValueError("Expected address type public or random, got {}".format(addrType))
+        self._startHelper()
+        self.deviceAddr = addr
+        self.addrType = addrType
+        self._writeCmd("conn %s %s\n" % (addr, addrType))
+        
+    def connect_stat(self):
+        curStat = self._getResp('stat', 0)
+        if (curStat == None):
+            return "tryconn"
+        elif (curStat['state'][0] != "tryconn" and curStat['state'][0] != "conn"):
+            self._stopHelper()
+            raise BTLEException(BTLEException.DISCONNECTED,
+                                "Failed to connect to peripheral %s, addr type: %s" % (self.deviceAddr, self.addrType))
+        return curStat['state'][0]
+    
     def disconnect(self):
         if self._helper is None:
             return

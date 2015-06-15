@@ -32,9 +32,10 @@ def doReconnectAll(value = None):
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 args = parser.parse_args()
 
-UNIT_WIDTH = 320
-UNIT_HEIGHT = 240
-UNIT_COUNT = 2
+#GUI indicates old gui code that we may want to remove.
+#GUI UNIT_WIDTH = 320
+#GUI UNIT_HEIGHT = 240
+#GUI UNIT_COUNT = 2
 
 #pygame.init()
 #pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
@@ -50,7 +51,7 @@ guiApp = gui.Desktop()
 guiAppTable = gui.Table()
 
 guiAppTable.tr()
-guiAppTable.td(gui.Label("Battle Blimps"), colspan=(2 if controllersPerLine == 2 else 4), style={'border':10});
+guiAppTable.td(gui.Label("Battle Blimps"), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10});
 guiAppButtonsTable = gui.Table()
 guiReconnectButton=gui.Button("Reconnect All")
 guiReconnectButton.connect(gui.CLICK, doReconnectAll, None);
@@ -58,7 +59,9 @@ guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None);
 guiAppButtonsTable.td(guiReconnectButton)
 guiAppButtonsTable.td(guiQuitButton)
-guiAppTable.td(guiAppButtonsTable)
+if (numControllers == 1):
+    guiAppTable.tr()
+guiAppTable.td(guiAppButtonsTable, style={'border':3})
 
 for c in range(0, numControllers):
     controller = controllers[c]
@@ -70,11 +73,19 @@ for c in range(0, numControllers):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.outerFrame)
 guiApp.init(guiAppTable)
-    
-while True:
-    events = pygame.event.get()
 
+# Connect all of the controllers.
+for controller in controllers:
+    controller.bleBlimp.connect()
+
+while True:
+    # Check for and update any pending connection attempts.
+    for controller in controllers:
+        if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTING:
+            controller.bleBlimp.checkCompleteConnection()
+    
     # Process all events in queue, including keybaord controller events.
+    events = pygame.event.get()
     for event in events:
 
         if (event.type == QUIT) or \
