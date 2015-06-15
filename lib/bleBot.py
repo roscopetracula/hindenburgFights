@@ -21,9 +21,6 @@ class bleBotGui():
     axisDirMap = {0:"01", 1:"01", 2:"02"}
 
     def __init__( self, ble_adr, ble_bot, type ):
-        # State variables.
-        self.isConnected = False
-        
         # Set up the individual controls.
         self.bot = ble_bot
         self.outerFrame = gui.Table()
@@ -81,22 +78,26 @@ class bleBotGui():
         self.connectionTable.td(self.reconnectButton)
         self.connectionTable.td(self.connectButton)
 
-    def setConnected(self, isConnected):
-        self.isConnected = isConnected
-        if isConnected:
+    def updateConnectionState(self):
+        if self.bot.connectionState == bleBot.CONNECTED:
             self.connectButtonLabel.set_text("Disconnect")
             self.stateLabel.set_text("Connected")
             self.reconnectButton.disabled = False
+        elif self.bot.connectionState == bleBot.CONNECTING:
+            self.connectButtonLabel.set_text("Cancel")
+            self.stateLabel.set_text("Connecting...")
+            self.reconnectButton.disabled = True
         else:
             self.connectButtonLabel.set_text("Connect")
             self.stateLabel.set_text("DISCONNECTED")
             self.reconnectButton.disabled = True
-
+        return
+    
     def reconnect(self, value):
         self.bot.reconnect()
 
     def connectOrDisconnect(self, value):
-        if self.isConnected:
+        if self.bot.connectionState != bleBot.DISCONNECTED:
             self.bot.disconnect()
         else:
             self.bot.connect()
@@ -114,16 +115,21 @@ class bleBotGui():
                 self.axisFaultLabel[i].set_text("Fault: {:02X}".format(self.bot.lastFault[i]))
             
 class bleBot():
+    # Constants
     RETURN_MSG_STRING = 0x00
     RETURN_MSG_UPDATE = 0x01
     RETURN_MSG_FAULT = 0x02   
-
+    DISCONNECTED=0
+    CONNECTING=1
+    CONNECTED=2
+    
     def __init__( self, ble_adr, type ):
+
         # Set up connection-related data.
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
-        self.isConnected = False # We may ultimately need more than two states here.
+        self.connectionState = self.DISCONNECTED
         self.curRSSI = "?"
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
@@ -136,6 +142,12 @@ class bleBot():
         self.lastFault = [0, 0, 0]
         self.lastFaultTime = [0, 0, 0]
         self.gui = bleBotGui(ble_adr, self, type)
+        return
+    
+    def updateConnectionState(self, newConnectionState):
+        self.connectionState = newConnectionState
+        self.gui.updateConnectionState()
+        return
         
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
@@ -185,17 +197,15 @@ class bleBot():
             
     def connect( self ):
 
-        self.gui.stateLabel.set_text("Connecting...")
         if (self.ble_adr == "dummy"):
             print "dummy connection established"
-            self.isConnected = True
-            self.gui.setConnected(self.isConnected)
+            self.updateConnectionState(self.CONNECTED)
             return self
 
-        self.isConnected = False
+        self.updateConnectionState(self.CONNECTING)
         print self.ble_adr, 'attempting to CONNECT'
         try:
-            self.btlePeripheral.connect(self.ble_adr, btle.ADDR_TYPE_RANDOM)
+            self.btlePeripheral.connect_async(self.ble_adr, btle.ADDR_TYPE_RANDOM)
         except OSError as e:
             print "-------------------------------------------------------------------"
             print "CONNECTION FAILED"
@@ -204,25 +214,35 @@ class bleBot():
             print "To compile, run \"make clean; make\" from bluepy/bluepy directory."
             print "-------------------------------------------------------------------"
             print e
-            self.gui.setConnected(self.isConnected)
+            self.updateConnectionState(self.DISCONNECTED)
             return self
+        return self
+
+    def checkCompleteConnection( self ):
+        try: 
+            curStat = self.btlePeripheral.connect_stat()
         except btle.BTLEException as e:
             if (e.code == btle.BTLEException.DISCONNECTED):
                 print "----------------------------------------------------------------------"
                 print "CONNECTION FAILED"
                 print e
-                print "BTLEException raised.  bluepy-helper may be a zombie."
+                print "BTLEException raised.  bluepy-helper may or may not be a zombie."
                 print "Try running \"killall bluepy-helper\" before running blimpControl again."
                 print "----------------------------------------------------------------------"
-                self.gui.setConnected(self.isConnected)
-                return self
+                self.updateConnectionState(self.DISCONNECTED)
+                return
             else:
                 raise
 
-        self.isConnected = True
-        self.gui.setConnected(self.isConnected)
+        if (curStat == "tryconn"):
+            return
+        elif (curStat != "conn"):
+            print "{:s} UNKNOWN CONNECTION STATUS {:s}; ASSUMING CONNECTION FAILURE".format(self.ble_adr, curStat)
+            return
+
+        self.updateConnectionState(self.CONNECTED)
         self.btlePeripheral.setDelegate(self)
-        print "connection attempt complete, status:", self.btlePeripheral.status()
+        print self.ble_adr, "connection successful"
         
         # If debugging, print info about connection.  We don't
         # currently show descriptors, but we could.
@@ -235,16 +255,15 @@ class bleBot():
                     print "CHARACTERISTIC ",char.getHandle(),": ",char," ",char.propertiesToString()
 
         self.btlePeripheral.writeCharacteristic(0x000f, "0300".decode("hex"), False)
-        return self
-
-
+        return
+    
     def char_write_cmd( self, value ):
         # in BLE gatttool,
         # for IMUduino: char-write-cmd 0x000b 41424344
         # for RFduino: char-write-cmd 0x0011 41424344555555
-        print "{:s}> {:s} {:s}".format("snd" if self.isConnected else "noconn", self.ble_adr, value)
+        print "{:s}> {:s} {:s}".format("snd" if self.connectionState == self.CONNECTED else "noconn", self.ble_adr, value)
 
-        if (not self.isConnected):
+        if (self.connectionState != self.CONNECTED):
             return
         
         # Fake sending if we are using a dummy blimp.
@@ -257,30 +276,23 @@ class bleBot():
         except btle.BTLEException as e:
             if (e.code == btle.BTLEException.DISCONNECTED):
                 print self.ble_adr, "DISCONNECTED"
-                self.isConnected = False
+                self.updateConnectionState(self.DISCONNECTED)
                 pass
             else:
                 raise
-            
         return
 
     def cleanup( self ):
-
         # Just disconnect.
         self.disconnect()
-
         return
 
     def disconnect( self ):
 
-        self.gui.stateLabel.set_text("Disconnecting...")
         print self.ble_adr, 'attempting to DISCONNECT'
-        self.isConnected = False
-        self.gui.setConnected(self.isConnected)
 
-        if (self.ble_adr == "dummy"):
-            self.isConnected = False
-        else: 
+        self.updateConnectionState(self.DISCONNECTED)
+        if (self.ble_adr != "dummy"):
             # Disconnect from bluetooth.
             self.btlePeripheral.disconnect()
 
@@ -288,6 +300,13 @@ class bleBot():
 
     def reconnect( self ):
         print self.ble_adr, 'attempting to RECONNECT...'
+
+        # bluepy is currently unstable if another connection is
+        # attempted while one is pending.  If we somehow need this
+        # functionality, we can add it later.
+        if self.connectionState == self.CONNECTING:
+            print self.ble_adr, "already connecting, ignoring reconnect attempt."
+            return
         
         # Disconnect and reconnect.
         self.disconnect()
