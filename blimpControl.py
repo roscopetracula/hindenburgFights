@@ -101,8 +101,8 @@ while True:
                    event.key in controller.handledKeys:
                     controller.handleEvt(event)
 
-        else:
-            guiApp.event(event)
+        # Always pass the event to the app.
+        guiApp.event(event)
             
     # Check for any Xbox controller activity.
     for controller in controllers:

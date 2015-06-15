@@ -17,6 +17,15 @@ class bleBotGui():
     HEIGHT=240
     AXIS_WIDTH=WIDTH/3
     BLIMP_OUTER_BORDER=3
+
+    # Colors
+    RED=(255,0,0)
+    GREEN=(0,255,0)
+    BLUE=(0,0,255)
+    CYAN=(0,255,255)
+    PURPLE=(255,0,255)
+    YELLOW=(255,255,0)
+        
     axisNoMap = {0:1, 1:2, 2:0}
     axisDirMap = {0:"01", 1:"01", 2:"02"}
 
@@ -66,7 +75,7 @@ class bleBotGui():
         self.connectionTable = gui.Table()
         self.frame.tr()
         self.frame.td(self.connectionTable)
-        self.stateLabel = gui.Label("DISCONNECTED")
+        self.stateLabel = gui.Label("DISCONNECTED", background=self.RED)
         self.connectButtonLabel = gui.Label("Connect")
         self.connectButton = gui.Button(self.connectButtonLabel)
         self.connectButton.connect(gui.CLICK,self.connectOrDisconnect,None)
@@ -82,14 +91,17 @@ class bleBotGui():
         if self.bot.connectionState == bleBot.CONNECTED:
             self.connectButtonLabel.set_text("Disconnect")
             self.stateLabel.set_text("Connected")
+            self.stateLabel.style.background = self.GREEN
             self.reconnectButton.disabled = False
         elif self.bot.connectionState == bleBot.CONNECTING:
             self.connectButtonLabel.set_text("Cancel")
             self.stateLabel.set_text("Connecting...")
+            self.stateLabel.style.background = self.YELLOW
             self.reconnectButton.disabled = True
         else:
             self.connectButtonLabel.set_text("Connect")
             self.stateLabel.set_text("DISCONNECTED")
+            self.stateLabel.style.background = self.RED
             self.reconnectButton.disabled = True
         return
     
