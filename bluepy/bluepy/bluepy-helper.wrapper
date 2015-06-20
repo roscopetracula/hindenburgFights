@@ -1,0 +1,4 @@
+#!/bin/bash
+DIR=`dirname $0`
+OUT="bluepy.log.$$"
+"$DIR/bluepy-helper" > >(tee $OUT.stdout) 2> >(tee $OUT.stderr >&2)
