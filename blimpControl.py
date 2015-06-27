@@ -10,7 +10,6 @@ from ctypes.util import find_library
 from pygame.locals import *
 
 from pgu import gui
-#GUI from pgu import html
 
 from lib.controller import (
     load_controllers,
@@ -37,13 +36,6 @@ def doEnableAll(value = None):
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 args = parser.parse_args()
 
-#GUI indicates old gui code that we may want to remove.
-#GUI UNIT_WIDTH = 320
-#GUI UNIT_HEIGHT = 240
-#GUI UNIT_COUNT = 2
-
-#pygame.init()
-#pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
 if has_xbox_controller():
     pygame.joystick.init()
 controllers = load_controllers()
@@ -52,7 +44,6 @@ controllersPerLine = 2 if numControllers < 5 else 3
 
 # Initialize GUI.
 guiApp = gui.Desktop()
-#GUI guiAppContainer = gui.Container(width=UNIT_WIDTH*UNIT_COUNT, height=UNIT_HEIGHT)
 guiAppTable = gui.Table()
 
 guiAppTable.tr()
@@ -147,10 +138,5 @@ while True:
     for controller in controllers:
         controller.retransmit()
 
-    # time.sleep(0.05)
-
-    # It's not clear if this is the exact set we need, but it appears
-    # to work for now.
+    # Update the gui.    
     guiApp.loop()
-    guiApp.paint()
-    pygame.display.flip()
