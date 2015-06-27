@@ -12,9 +12,11 @@ from lib.constants import XBOX, KEYBOARD
 
 TRANSMISSION_TIMEOUT  = 0.9
 MIN_TRANSMIT_INTERVAL = 0.1
-DEBUG_TX = True
+MAX_CONNECT_TIME = 0.5
+DEBUG_TX = False
 DEBUG_RX = True
-DEBUG_UPDATE = True
+DEBUG_UPDATE = False
+DEBUG_CONNECT = False
 
 class bleBotGui():
     WIDTH=320
@@ -77,46 +79,42 @@ class bleBotGui():
                               
         # Build the table with the connect/reconnect info and buttons.
         self.connectionTable = gui.Table()
+        self.stateLabel = gui.Label("Waiting...", background=self.YELLOW)
+        self.disableButtonLabel = gui.Label("Disable")
+        self.disableButton = gui.Button(self.disableButtonLabel)
+        self.disableButton.connect(gui.CLICK, self.disableOrEnable, None)
+        self.connectionTable.tr()
+        self.connectionTable.td(self.stateLabel, width=self.WIDTH/2)
+        self.connectionTable.td(self.disableButton, width=self.WIDTH/2)
         self.frame.tr()
         self.frame.td(self.connectionTable)
-        self.stateLabel = gui.Label("DISCONNECTED", background=self.RED)
-        self.connectButtonLabel = gui.Label("Connect")
-        self.connectButton = gui.Button(self.connectButtonLabel)
-        self.connectButton.connect(gui.CLICK,self.connectOrDisconnect,None)
-        self.reconnectButton = gui.Button("Reconnect")
-        self.reconnectButton.connect(gui.CLICK,self.reconnect,None)
-        self.reconnectButton.disabled = True
-        self.connectionTable.tr()
-        self.connectionTable.td(self.stateLabel)
-        self.connectionTable.td(self.reconnectButton)
-        self.connectionTable.td(self.connectButton)
 
     def updateConnectionState(self):
         if self.bot.connectionState == bleBot.CONNECTED:
-            self.connectButtonLabel.set_text("Disconnect")
             self.stateLabel.set_text("Connected")
             self.stateLabel.style.background = self.GREEN
-            self.reconnectButton.disabled = False
         elif self.bot.connectionState == bleBot.CONNECTING:
-            self.connectButtonLabel.set_text("Cancel")
             self.stateLabel.set_text("Connecting...")
             self.stateLabel.style.background = self.YELLOW
-            self.reconnectButton.disabled = True
-        else:
-            self.connectButtonLabel.set_text("Connect")
-            self.stateLabel.set_text("DISCONNECTED")
+        elif self.bot.connectionState == bleBot.FAILED:
+            self.stateLabel.set_text("Retrying...")
+            self.stateLabel.style.background = self.YELLOW
+        elif self.bot.connectionState == bleBot.WAITING or self.bot.connectionState == bleBot.TIMED_OUT:
+            self.stateLabel.set_text("Waiting...")
+            self.stateLabel.style.background = self.YELLOW
+        elif self.bot.connectionState == bleBot.DISABLED:
+            self.stateLabel.set_text("DISABLED")
             self.stateLabel.style.background = self.RED
-            self.reconnectButton.disabled = True
-        return
-    
-    def reconnect(self, value):
-        self.bot.reconnect()
-
-    def connectOrDisconnect(self, value):
-        if self.bot.connectionState != bleBot.DISCONNECTED:
-            self.bot.disconnect()
         else:
-            self.bot.connect()
+            self.stateLabel.set_text("UNKNOWN {:d}".format(self.bot.connectionState))
+            self.stateLabel.style.background = self.PURPLE            
+        return
+
+    def disableOrEnable(self, value):
+        if self.bot.connectionState != bleBot.DISABLED:
+            self.bot.disable()
+        else:
+            self.bot.enable()
 
     def setAxis(self, axisNo, newDirection, newValue):
         newValue = int(newValue, 16)
@@ -137,9 +135,12 @@ class bleBot():
     RETURN_MSG_STRING = 0x00
     RETURN_MSG_UPDATE = 0x01
     RETURN_MSG_FAULT = 0x02   
-    DISCONNECTED=0
-    CONNECTING=1
-    CONNECTED=2
+    DISABLED=-1
+    CONNECTED=0
+    TIMED_OUT=1
+    WAITING=2
+    CONNECTING=3
+    FAILED=4
     
     def __init__( self, ble_adr, type ):
 
@@ -148,7 +149,7 @@ class bleBot():
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
-        self.connectionState = self.DISCONNECTED
+        self.connectionState = self.WAITING
         self.curRSSI = "?"
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
@@ -160,7 +161,21 @@ class bleBot():
         self.curReceiveString = ""
         self.lastFault = [0, 0, 0]
         self.lastFaultTime = [0, 0, 0]
+        self.lastConnectStart = 0
         self.gui = bleBotGui(ble_adr, self, type)
+        return
+
+    def disable(self):
+        if self.connectionState != self.DISABLED:
+            self.disconnect()
+            self.updateConnectionState(bleBot.DISABLED)
+            self.gui.disableButtonLabel.set_text("Enable")
+        return
+    
+    def enable(self):
+        if self.connectionState == self.DISABLED:
+            self.updateConnectionState(bleBot.WAITING)
+            self.gui.disableButtonLabel.set_text("Disable")
         return
     
     def updateConnectionState(self, newConnectionState):
@@ -232,8 +247,24 @@ class bleBot():
             self.updateConnectionState(self.CONNECTED)
             return self
 
-        self.updateConnectionState(self.CONNECTING)
-        print self.ble_adr, 'attempting to CONNECT'
+        if self.connectionState == self.WAITING:
+            if DEBUG_CONNECT:
+                print self.ble_adr, 'attempting to CONNECT'
+            self.lastConnectStart = time.time()
+            self.updateConnectionState(self.CONNECTING)
+        elif self.connectionState == self.FAILED:
+            if time.time() - self.lastConnectStart > MAX_CONNECT_TIME:
+                if DEBUG_CONNECT:
+                    print self.ble_adr, 'connection TIMED OUT'
+                self.updateConnectionState(self.TIMED_OUT)
+                return
+            else:
+                if DEBUG_CONNECT:
+                    print self.ble_adr, 'attempting to CONNECT again'
+                self.updateConnectionState(self.CONNECTING)
+        else:
+            print "ERROR, connect() from unexpected connectionState {:d}".format(self.connectionState)
+            
         try:
             self.btlePeripheral.connect_async(self.ble_adr, btle.ADDR_TYPE_RANDOM)
         except OSError as e:
@@ -244,11 +275,18 @@ class bleBot():
             print "To compile, run \"make clean; make\" from bluepy/bluepy directory."
             print "-------------------------------------------------------------------"
             print e
-            self.updateConnectionState(self.DISCONNECTED)
+            self.updateConnectionState(self.FAILED)
             return self
         return self
 
     def checkCompleteConnection( self ):
+        if time.time() - self.lastConnectStart > MAX_CONNECT_TIME:
+            if DEBUG_CONNECT:
+                print self.ble_adr, 'connection TIMED OUT'
+            self.disconnect()
+            self.updateConnectionState(self.TIMED_OUT)
+            return
+
         try: 
             curStat = self.btlePeripheral.connect_stat()
         except btle.BTLEException as e:
@@ -259,7 +297,7 @@ class bleBot():
                 print "BTLEException raised.  bluepy-helper may or may not be a zombie."
                 print "Try running \"killall bluepy-helper\" before running blimpControl again."
                 print "----------------------------------------------------------------------"
-                self.updateConnectionState(self.DISCONNECTED)
+                self.updateConnectionState(self.FAILED)
                 return
             else:
                 raise
@@ -272,7 +310,8 @@ class bleBot():
 
         self.updateConnectionState(self.CONNECTED)
         self.btlePeripheral.setDelegate(self)
-        print self.ble_adr, "connection successful"
+        if DEBUG_CONNECT:
+            print self.ble_adr, "connection successful"
         
         # If debugging, print info about connection.  We don't
         # currently show descriptors, but we could.
@@ -306,8 +345,9 @@ class bleBot():
             self.btlePeripheral.writeCharacteristic(0x0011, value.decode("hex"), False)
         except btle.BTLEException as e:
             if (e.code == btle.BTLEException.DISCONNECTED):
-                print self.ble_adr, "DISCONNECTED"
-                self.updateConnectionState(self.DISCONNECTED)
+                if DEBUG_CONNECT:
+                    print self.ble_adr, "DISCONNECTED"
+                self.updateConnectionState(self.WAITING)
                 pass
             else:
                 raise
@@ -320,23 +360,27 @@ class bleBot():
 
     def disconnect( self ):
 
-        print self.ble_adr, 'attempting to DISCONNECT'
+        if DEBUG_CONNECT:
+            print self.ble_adr, 'attempting to DISCONNECT'
 
-        self.updateConnectionState(self.DISCONNECTED)
+        self.updateConnectionState(self.WAITING)
         if (self.ble_adr != "dummy"):
             # Disconnect from bluetooth.
             self.btlePeripheral.disconnect()
 
-        print self.ble_adr, "connection closed"
+        if DEBUG_CONNECT:
+            print self.ble_adr, "connection closed"
 
     def reconnect( self ):
-        print self.ble_adr, 'attempting to RECONNECT...'
+        if DEBUG_CONNECT:
+            print self.ble_adr, 'attempting to RECONNECT...'
 
         # bluepy is currently unstable if another connection is
         # attempted while one is pending.  If we somehow need this
         # functionality, we can add it later.
         if self.connectionState == self.CONNECTING:
-            print self.ble_adr, "already connecting, ignoring reconnect attempt."
+            if DEBUG_CONNECT:
+                print self.ble_adr, "already connecting, ignoring reconnect attempt."
             return
         
         # Disconnect and reconnect.
