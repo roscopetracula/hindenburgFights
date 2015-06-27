@@ -13,10 +13,12 @@
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
 
 // Flags
-#undef  SERIAL_ENABLE           /* Enable serial communications. Watch out for loss of side effects in calls. */
-#undef  DEBUG_RECEIVE_LONG      /* Define to print extended receive messages; 0 to just print '@'. */
-#undef  TRANSMIT_ACK            /* Transmit an acknowledgement after each packet. */
-#undef  TRANSMIT_FAULT_STRING   /* Transmit a string version of the fault in addition to the coded version. */
+#undef  SERIAL_ENABLE            /* Enable serial communications. Watch out for loss of side effects in calls. */
+#undef  DEBUG_RECEIVE_LONG       /* Define to print extended receive messages; 0 to just print '@'. */
+#undef  TRANSMIT_ACK             /* Transmit an acknowledgement after each packet. */
+#undef  TRANSMIT_FAULT_STRING    /* Transmit a string version of the fault in addition to the coded version. */
+#undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
+#undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -37,6 +39,7 @@
 byte motorIndexes[3] = {MOTOR1,MOTOR2,MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte nextMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
+byte faultCollectors[3] = {0, 0, 0};
 byte igniterStateByte = 0;
 byte blimpTriggerState = 0;
 byte curControllerTriggerState = 0;
@@ -82,7 +85,7 @@ void setup()
   delay(20);
 
   // Do the motor dance.
-  testMotors(0x3F, 200);
+  testMotors(0x3F, 250);
   DBGPRINTLN("ready to go!"); 
 }
 
@@ -148,11 +151,15 @@ void loop()
   // Check if it's time to send an update.
   if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL) {
      float curTemp = RFduino_temperature(FAHRENHEIT);
-     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp);
+     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 3;
      char buf[bufLen];
      buf[0] = RETURN_MSG_UPDATE;
      memcpy(buf+1, &curRSSI, sizeof(curRSSI));
      memcpy(buf+1+sizeof(curRSSI), &curTemp, sizeof(curTemp));
+     for (int i=0; i<3; i++) {
+       buf[1 + sizeof(curRSSI) + sizeof(curTemp) + i] = faultCollectors[i];
+       faultCollectors[i] = 0;
+     }
      bleSendData(buf, bufLen);
      lastUpdateMillis = millis();
    }
@@ -168,14 +175,18 @@ void loop()
 void RFduinoBLE_onConnect() {
   isConnected = true;
   DBGPRINTLN("connected");
+#ifdef TEST_MOTORS_ON_CONNECT
   testMotors(0x3F, 100);
+#endif
 }
 
 void RFduinoBLE_onDisconnect() {
   isConnected = false;
   DBGPRINTLN("disconnected, turning everything off");
   resetState();
+#ifdef TEST_MOTORS_ON_CONNECT
   testMotors(0x3F, 50);
+#endif
 }
 
 
@@ -445,11 +456,17 @@ void getFault(int thisMotor, bool shouldClearFault) {
     registerFault = Wire.read();
     totalRegisterFaults |= registerFault;
     if (registerFault != 0) {
+      // Update the fault collectors.
+      faultCollectors[motorNumFromIndex(thisMotor)] |= registerFault;
+      
+#ifdef TRANSMIT_FAULT_IMMEDIATE
       // Send a fault report to the client.
       char sendBuf[3] = {RETURN_MSG_FAULT, motorNumFromIndex(thisMotor), registerFault};
       bleSendData(sendBuf, 3);
-     
-      // Build a string and send that to the client. 
+#endif
+
+#if defined(TRANSMIT_FAULT_STRING) || defined(SERIAL_ENABLE)
+      // Build a string and send that to the client, but only if we're doing serial or trasnmitting it.
       char buf[256];
       snprintf(buf, 256, "Motor %d faults (err %d): %02x (", motorNumFromIndex(thisMotor), wireAck, registerFault);
       
@@ -469,10 +486,11 @@ void getFault(int thisMotor, bool shouldClearFault) {
         strncat(buf, " ILIMIT ", 256);
 
       strncat(buf, ") ", 256);
+#endif
       DBGPRINTLN(buf);
- #ifdef TRANSMIT_FAULT_STRING
+#ifdef TRANSMIT_FAULT_STRING
       bleSendString(buf);      
- #endif
+#endif
       }
   }
   // If we had any faults and we are supposed to clear them, do so.

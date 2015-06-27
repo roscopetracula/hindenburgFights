@@ -12,6 +12,9 @@ from lib.constants import XBOX, KEYBOARD
 
 TRANSMISSION_TIMEOUT  = 0.9
 MIN_TRANSMIT_INTERVAL = 0.1
+DEBUG_TX = True
+DEBUG_RX = True
+DEBUG_UPDATE = True
 
 class bleBotGui():
     WIDTH=320
@@ -50,7 +53,7 @@ class bleBotGui():
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
         self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.HSlider(value=0, min=-63, max=63, size=1, width=100), gui.Label("Temp")]
         self.axisBorders = [{'border_right':1}, {'border_right':1}, {}, {}]
-        self.axisFaultLabel = [gui.Label("No Fault"), gui.Label("No Fault"), gui.Label("No Fault"), gui.Label("No Fault")]
+        self.axisFaultLabel = [gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN)]
         # Note that we're currently ignoring the igniter box.
         self.axisOuterTable.tr()
         for i in range(0, 3):         
@@ -124,8 +127,10 @@ class bleBotGui():
         for i in range(0, 3):
             if (self.bot.lastFault[i] == 0):
                 self.axisFaultLabel[i].set_text("No Fault")
+                self.axisFaultLabel[i].style.background = self.GREEN
             else:
                 self.axisFaultLabel[i].set_text("Fault: {:02X}".format(self.bot.lastFault[i]))
+                self.axisFaultLabel[i].style.background = self.RED
             
 class bleBot():
     # Constants
@@ -162,7 +167,21 @@ class bleBot():
         self.connectionState = newConnectionState
         self.gui.updateConnectionState()
         return
-        
+
+    def decodeFaults(self, faultValue):
+        faults = [];
+        if (faultValue & 0x01):
+            faults.append("FAULT")
+        if (faultValue & 0x02):
+            faults.append("OCP")
+        if (faultValue & 0x04):
+            faults.append("UVLO")
+        if (faultValue & 0x08):
+            faults.append("OTS")
+        if (faultValue & 0x10):
+            faults.append("ILIMIT")
+        return faults
+    
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
             print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
@@ -176,7 +195,8 @@ class bleBot():
             # For strings, print the complete string if there's a null termination,
             self.curReceiveString = self.curReceiveString + data
             if (string.find(data, "\x00") != -1):
-                print "rcv>", self.curReceiveString
+                if DEBUG_RX:
+                    print "{:s} rcv> {:s}".format(self.ble_adr, self.curReceiveString)
                 self.curReceiveString = ""
         elif rcvCmd == self.RETURN_MSG_UPDATE:
             # The update message is just a 4 byte RSSI integer and then a 4 byte temperature float.
@@ -184,7 +204,14 @@ class bleBot():
             self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
             self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
             self.gui.tempLabel.set_text("Temp: {:.1f}\xb0F".format(self.curTemp))
-            print "update> {:s} rssi {:d}, temp {:.1f}".format(self.ble_adr, self.curRSSI, self.curTemp)
+            for i in range(0, 3):
+                self.lastFault[i] = ord(data[8+i])
+                if (self.lastFault[i] != 0):
+                    self.lastFaultTime[i] = time.time()
+            self.gui.updateFaults()
+            if DEBUG_UPDATE:
+                print "{:s} update> rssi {:d}, temp {:.1f}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, self.curRSSI, self.curTemp, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+
         elif rcvCmd == self.RETURN_MSG_FAULT:
             # Decode the raw fault data.
             faultMotor = ord(data[0])
@@ -192,18 +219,7 @@ class bleBot():
             self.lastFault[faultMotor] = faultValue
             self.lastFaultTime[faultMotor] = time.time()
             self.gui.updateFaults()
-            faults = [];
-            if (faultValue & 0x01):
-                faults.append("FAULT")
-            if (faultValue & 0x02):
-                faults.append("OCP")
-            if (faultValue & 0x04):
-                faults.append("UVLO")
-            if (faultValue & 0x08):
-                faults.append("OTS")
-            if (faultValue & 0x10):
-                faults.append("ILIMIT")
-            
+            faults = self.decodeFaults(faultValue)            
             print "motor {:d} fault: {:s}".format(faultMotor, faults)
             
         else:
@@ -275,7 +291,8 @@ class bleBot():
         # in BLE gatttool,
         # for IMUduino: char-write-cmd 0x000b 41424344
         # for RFduino: char-write-cmd 0x0011 41424344555555
-        print "{:s}> {:s} {:s}".format("snd" if self.connectionState == self.CONNECTED else "noconn", self.ble_adr, value)
+        if DEBUG_TX:
+            print "{:s} {:s}> {:s}".format(self.ble_adr, "snd" if self.connectionState == self.CONNECTED else "noconn", value)
 
         if (self.connectionState != self.CONNECTED):
             return
