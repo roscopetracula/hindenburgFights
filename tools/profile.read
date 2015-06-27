@@ -1,0 +1,11 @@
+#!/usr/bin/python
+import pstats
+import code
+p = pstats.Stats('profile.out')
+p.sort_stats('cumtime')
+p.print_stats(10)
+ss = p.sort_stats
+ps = p.print_stats
+pc = p.print_callers
+code.interact(local=locals())
+
