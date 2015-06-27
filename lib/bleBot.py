@@ -10,13 +10,31 @@ from bluepy.bluepy import btle
 from pgu import gui
 from lib.constants import XBOX, KEYBOARD
 
-TRANSMISSION_TIMEOUT  = 0.9
-MIN_TRANSMIT_INTERVAL = 0.1
-MAX_CONNECT_TIME = 0.5
-DEBUG_TX = False
-DEBUG_RX = True
-DEBUG_UPDATE = False
-DEBUG_CONNECT = False
+# Flags
+DEFAULT_ENABLED = True # Enable blimps when the program is started.
+DEBUG_TX = False        # Print debug messages for transmissions.
+DEBUG_RX = True         # Print debug messages for generic received
+                        # text.
+DEBUG_UPDATE = False    # Print debug messages for received updates.
+DEBUG_CONNECT = False   # Print debug messages for connections and
+                        # disconnections.
+
+# Constants
+TRANSMISSION_TIMEOUT  = 0.9 # Send an update if we haven't tranmitted
+                            # in this period (s).
+MIN_TRANSMIT_INTERVAL = 0.1 # Don't transmit more than once in this
+                            # period (s).
+MAX_CONNECT_TIME = 0.5      # Maximum time (s) to spend on a
+                            # connection attempt before timing out.
+                        
+
+# Colors
+RED=(255,0,0)
+GREEN=(0,255,0)
+BLUE=(0,0,255)
+CYAN=(0,255,255)
+PURPLE=(255,0,255)
+YELLOW=(255,255,0)        
 
 class bleBotGui():
     WIDTH=320
@@ -24,14 +42,6 @@ class bleBotGui():
     AXIS_WIDTH=WIDTH/3
     BLIMP_OUTER_BORDER=3
 
-    # Colors
-    RED=(255,0,0)
-    GREEN=(0,255,0)
-    BLUE=(0,0,255)
-    CYAN=(0,255,255)
-    PURPLE=(255,0,255)
-    YELLOW=(255,255,0)
-        
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
 
@@ -55,7 +65,7 @@ class bleBotGui():
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
         self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.HSlider(value=0, min=-63, max=63, size=1, width=100), gui.Label("Temp")]
         self.axisBorders = [{'border_right':1}, {'border_right':1}, {}, {}]
-        self.axisFaultLabel = [gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN), gui.Label("No Fault", background=self.GREEN)]
+        self.axisFaultLabel = [gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN)]
         # Note that we're currently ignoring the igniter box.
         self.axisOuterTable.tr()
         for i in range(0, 3):         
@@ -79,8 +89,12 @@ class bleBotGui():
                               
         # Build the table with the connect/reconnect info and buttons.
         self.connectionTable = gui.Table()
-        self.stateLabel = gui.Label("Waiting...", background=self.YELLOW)
-        self.disableButtonLabel = gui.Label("Disable")
+        if DEFAULT_ENABLED:
+            self.stateLabel = gui.Label("Waiting...", background=YELLOW)
+            self.disableButtonLabel = gui.Label("Disable")
+        else:
+            self.stateLabel = gui.Label("DISABLED", background=RED)
+            self.disableButtonLabel = gui.Label("Enable")
         self.disableButton = gui.Button(self.disableButtonLabel)
         self.disableButton.connect(gui.CLICK, self.disableOrEnable, None)
         self.connectionTable.tr()
@@ -92,22 +106,22 @@ class bleBotGui():
     def updateConnectionState(self):
         if self.bot.connectionState == bleBot.CONNECTED:
             self.stateLabel.set_text("Connected")
-            self.stateLabel.style.background = self.GREEN
+            self.stateLabel.style.background = GREEN
         elif self.bot.connectionState == bleBot.CONNECTING:
             self.stateLabel.set_text("Connecting...")
-            self.stateLabel.style.background = self.YELLOW
+            self.stateLabel.style.background = YELLOW
         elif self.bot.connectionState == bleBot.FAILED:
             self.stateLabel.set_text("Retrying...")
-            self.stateLabel.style.background = self.YELLOW
+            self.stateLabel.style.background = YELLOW
         elif self.bot.connectionState == bleBot.WAITING or self.bot.connectionState == bleBot.TIMED_OUT:
             self.stateLabel.set_text("Waiting...")
-            self.stateLabel.style.background = self.YELLOW
+            self.stateLabel.style.background = YELLOW
         elif self.bot.connectionState == bleBot.DISABLED:
             self.stateLabel.set_text("DISABLED")
-            self.stateLabel.style.background = self.RED
+            self.stateLabel.style.background = RED
         else:
             self.stateLabel.set_text("UNKNOWN {:d}".format(self.bot.connectionState))
-            self.stateLabel.style.background = self.PURPLE            
+            self.stateLabel.style.background = PURPLE            
         return
 
     def disableOrEnable(self, value):
@@ -125,10 +139,10 @@ class bleBotGui():
         for i in range(0, 3):
             if (self.bot.lastFault[i] == 0):
                 self.axisFaultLabel[i].set_text("No Fault")
-                self.axisFaultLabel[i].style.background = self.GREEN
+                self.axisFaultLabel[i].style.background = GREEN
             else:
                 self.axisFaultLabel[i].set_text("Fault: {:02X}".format(self.bot.lastFault[i]))
-                self.axisFaultLabel[i].style.background = self.RED
+                self.axisFaultLabel[i].style.background = RED
             
 class bleBot():
     # Constants
@@ -149,7 +163,10 @@ class bleBot():
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
-        self.connectionState = self.WAITING
+        if DEFAULT_ENABLED:
+            self.connectionState = self.WAITING
+        else:
+            self.connectionState = self.DISABLED
         self.curRSSI = "?"
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
