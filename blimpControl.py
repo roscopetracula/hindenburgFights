@@ -126,17 +126,14 @@ while True:
         # Always pass the event to the app.
         guiApp.event(event)
 
-    # Check if any controller activity needs to be transmitted.
-    for controller in controllers:
-        controller.bleBlimp.autoTxUpdate()
-        
     # Check for any Xbox controller activity.
     for controller in controllers:
         if isinstance(controller, XboxController):
             controller.handleXbox()
 
+    # Check if any controller activity needs to be transmitted.
     for controller in controllers:
-        controller.retransmit()
-
+        controller.bleBlimp.autoTxUpdate()
+        
     # Update the gui.    
     guiApp.loop()

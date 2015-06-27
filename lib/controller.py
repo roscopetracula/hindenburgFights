@@ -58,9 +58,6 @@ class Controller(object):
     def reconnect(self):
         self.bleBlimp.reconnect()
 
-    def retransmit(self):
-        self.bleBlimp.reTxState()
-
 class KeyboardController(Controller):
     def __init__(self,bleBlimp,axisToMotorMap,keyMap):
         Controller.__init__(self,bleBlimp)

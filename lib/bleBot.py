@@ -404,34 +404,42 @@ class bleBot():
     def sendToChannel(self, channel, data):
         self.sendMessage(channel+data)
 
-    def reTxState(self, force = False):
-        if force or time.time() - self.lastTxTime > TRANSMISSION_TIMEOUT:
-            #retransmit any states that haven't been sent in a while
-            tmpMsg = ""
-            for i in range(3):
-                self.lastTxState[i] = self.motorState[i] 
-                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
-            self.lastTxIgniterState = self.igniterState
-            tmpMsg += "03"+"".join(self.igniterState)
-            self.sendMessage(tmpMsg)
+    # Send a full state update.
+    def txState(self):
+        tmpMsg = ""
+        for i in range(3):
+            self.lastTxState[i] = self.motorState[i] 
+            tmpMsg += "0"+str(i)+"".join(self.motorState[i])
+        self.lastTxIgniterState = self.igniterState
+        tmpMsg += "03"+"".join(self.igniterState)
+        self.sendMessage(tmpMsg)
 
+    # Send a full state update when necessary (time out, new data, etc).
     def autoTxUpdate(self):
-        # Don't send any differences if not enough time has passed.
+        # Don't send anything if not enough time has passed.
         if (time.time() < self.lastTxTime + MIN_TRANSMIT_INTERVAL):
             return
 
+        # If we've timed out, always retransmit.
+        if (time.time() > self.lastTxTime + TRANSMISSION_TIMEOUT):
+            self.txState()
+            
         # Transmit everything if anything has changed.
-        tmpMsg = ""
+        changeFound = False
         for i in range(3):
             if self.lastTxState[i] != self.motorState[i]:
-                tmpMsg += "0"+str(i)+"".join(self.motorState[i])
                 self.lastTxState[i] = self.motorState[i]
+                changeFound = True
         if self.igniterState != self.lastTxIgniterState:
-            tmpMsg += "03"+"".join(self.igniterState)
+            # Note that interim igniter states can be lost. If we ever
+            # return to manual triggering, we should make sure to keep
+            # track of interim triggers in a separte variable.
             self.lastTxIgniterState = self.igniterState
-        if tmpMsg != "":
-            # self.sendMessage(tmpMsg) # Use this to just send differences.
-            self.reTxState(True)         # Use this to send all changes.
+            changeFound = True
+
+        # If anything changed, retransmit.
+        if changeFound: 
+            self.txState()
             
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
