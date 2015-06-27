@@ -11,7 +11,7 @@ from pgu import gui
 from lib.constants import XBOX, KEYBOARD
 
 # Flags
-DEFAULT_ENABLED = True # Enable blimps when the program is started.
+DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 DEBUG_TX = False        # Print debug messages for transmissions.
 DEBUG_RX = True         # Print debug messages for generic received
                         # text.
