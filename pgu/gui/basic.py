@@ -111,6 +111,9 @@ class Label(widget.Widget):
 
     def set_text(self, txt):
         """Set the text of this label."""
+        if (self.value == txt):
+            return
+        
         self.value = txt
         # Signal to the application that we need to resize this widget
         self.chsize()
