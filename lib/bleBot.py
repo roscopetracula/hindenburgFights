@@ -27,7 +27,6 @@ MIN_TRANSMIT_INTERVAL = 0.1 # Don't transmit more than once in this
 MAX_CONNECT_TIME = 0.5      # Maximum time (s) to spend on a
                             # connection attempt before timing out.
                         
-
 # Colors
 RED=(255,0,0)
 GREEN=(0,255,0)
@@ -433,12 +432,14 @@ class bleBot():
 
     # Send a full state update when necessary (time out, new data, etc).
     def autoTxUpdate(self):
+        curTime = time.time()
+        
         # Don't send anything if not enough time has passed.
-        if (time.time() < self.lastTxTime + MIN_TRANSMIT_INTERVAL):
+        if (curTime < self.lastTxTime + MIN_TRANSMIT_INTERVAL):
             return
 
         # If we've timed out, always retransmit.
-        if (time.time() > self.lastTxTime + TRANSMISSION_TIMEOUT):
+        if (curTime > self.lastTxTime + TRANSMISSION_TIMEOUT):
             self.txState()
             
         # Transmit everything if anything has changed.

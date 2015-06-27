@@ -79,6 +79,10 @@ class Button(_button):
 
     @value.setter
     def value(self, val):
+        # No need to do everything else if the value hasn't changed.
+        if self._value == val:
+            return
+        
         if (isinstance(val, basestring)):
             # Allow the choice of font to propagate to the button label
             params = {}
@@ -87,14 +91,12 @@ class Button(_button):
             val = basic.Label(val, cls=self.cls+".label", **params)
             val.container = self
 
-        oldval = self._value
         self._value = val
 
-        if (val != oldval):
-            # Notify any listeners that we've changed the label
-            self.send(CHANGE)
-            # Resize as needed
-            self.chsize()
+        # Notify any listeners that we've changed the label
+        self.send(CHANGE)
+        # Resize as needed
+        self.chsize()
 
     def resize(self,width=None,height=None):
         self.value.rect.x,self.value.rect.y = 0,0

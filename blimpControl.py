@@ -6,6 +6,9 @@ import time
 import argparse
 import pygame, sys
 
+DISPLAY_UPDATE_TIME = 0 # Don't update the display more than this
+                        # often (s).
+
 from ctypes.util import find_library
 from pygame.locals import *
 
@@ -34,8 +37,13 @@ def doEnableAll(value = None):
         controller.bleBlimp.enable()
 
 parser = argparse.ArgumentParser(description='We be big blimpin.')
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
+group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
 args = parser.parse_args()
 
+
+# Set up controllers and calculate gui controller layout.
 if has_xbox_controller():
     pygame.joystick.init()
 controllers = load_controllers()
@@ -72,6 +80,17 @@ for c in range(0, numControllers):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.outerFrame)
 guiApp.init(guiAppTable)
+
+lastDisplayUpdateTime = 0
+
+# If it was set on the command line, override the default blimp state.
+if args.default_enabled:
+    for controller in controllers:
+        controller.bleBlimp.enable()
+elif args.default_disabled:
+    for controller in controllers:
+        controller.bleBlimp.disable()
+    
 
 while True:
     foundConnecting = False
@@ -122,9 +141,10 @@ while True:
                 if isinstance(controller, KeyboardController) and \
                    event.key in controller.handledKeys:
                     controller.handleEvt(event)
-
-        # Always pass the event to the app.
-        guiApp.event(event)
+                    
+        else:
+            # Otherwise pass the event to the app.
+            guiApp.event(event)
 
     # Check for any Xbox controller activity.
     for controller in controllers:
@@ -135,5 +155,9 @@ while True:
     for controller in controllers:
         controller.bleBlimp.autoTxUpdate()
         
-    # Update the gui.    
-    guiApp.loop()
+    # Update the gui display if sufficient time has passed.    
+    loopTime = time.time()
+    if (loopTime - lastDisplayUpdateTime > DISPLAY_UPDATE_TIME):
+        lastDisplayUpdateTime = loopTime
+        rects = guiApp.update(guiApp.screen)
+        pygame.display.update(rects)
