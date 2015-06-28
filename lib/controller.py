@@ -1,17 +1,31 @@
-from config import CONTROLLERS
 from lib.constants import XBOX, KEYBOARD
 from lib.bleBot import bleBot
 import pygame
+import imp
 from pygame.locals import *
 
+CONTROLLERS = None
 
+def load_config():
+    global CONTROLLERS
+    if not CONTROLLERS:
+        try:
+            # Import the configuration by hand to allow for changing it.
+            i = imp.load_source("CONTROLLERS", Controller.CONFIG_FILE)
+            CONTROLLERS = i.CONTROLLERS
+        except:
+            print "unable to load config file \"{:s}\"".format(Controller.CONFIG_FILE)
+            raise
+    
 def load_controllers():
+    load_config()
     return [
         create_controller(controller_config)
         for controller_config in CONTROLLERS
     ]
 
 def has_xbox_controller():
+    load_config()
     for controller_config in CONTROLLERS:
         if controller_config['type'] == XBOX:
             return True
@@ -49,6 +63,8 @@ def create_controller(cfg):
     return controller
 
 class Controller(object):
+    CONFIG_FILE = "config.py"
+
     def __init__(self, bleBlimp):
         self.bleBlimp = bleBlimp
 
@@ -160,4 +176,5 @@ def numToMotorCode(x):
     hexStr = hex(int(round(0x06 + x*(0x3f-0x06))))[-2:]
     hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
     return hexStr
+
 

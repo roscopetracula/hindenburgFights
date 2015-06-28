@@ -20,6 +20,7 @@ from lib.controller import (
     KeyboardController,
     XboxController,
     bleBot,
+    Controller
 )
 
 def doQuit(value = None):
@@ -41,10 +42,12 @@ def doResetAll(value = None):
         controller.bleBlimp.reset()
 
 parser = argparse.ArgumentParser(description='We be big blimpin.')
+parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
 args = parser.parse_args()
+Controller.CONFIG_FILE = args.config
 
 # If it was set on the command line, override the default blimp state.
 if args.default_enabled:
