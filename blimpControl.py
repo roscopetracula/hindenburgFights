@@ -6,8 +6,9 @@ import time
 import argparse
 import pygame, sys
 
-DISPLAY_UPDATE_TIME = 0.0 # Don't update the display more than this
-                          # often (s).
+DISPLAY_UPDATE_TIME = 0.0   # Don't update the display more than this
+                            # often (s).
+GAME_NAME = "Battle Blimps" # Game name for window title(s).
 
 from ctypes.util import find_library
 from pygame.locals import *
@@ -67,7 +68,7 @@ guiApp = gui.Desktop()
 guiAppTable = gui.Table()
 
 guiAppTable.tr()
-guiAppTable.td(gui.Label("Battle Blimps"), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10});
+guiAppTable.td(gui.Label(GAME_NAME), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10});
 guiAppButtonsTable = gui.Table()
 guiDisableAllButton=gui.Button("Disable All")
 guiDisableAllButton.connect(gui.CLICK, doDisableAll, None);
@@ -95,6 +96,7 @@ for c in range(0, numControllers):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.frame)
 guiApp.init(guiAppTable)
+pygame.display.set_caption(GAME_NAME)
 
 lastDisplayUpdateTime = 0
 
