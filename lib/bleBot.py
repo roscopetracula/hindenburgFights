@@ -36,7 +36,7 @@ YELLOW=(255,255,0)
 
 BLIMP_OUTER_BORDER=3
 BLIMP_INNER_BORDER=1
-BLIMP_AXIS_WIDTH=100
+BLIMP_AXIS_WIDTH=120
 BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*0.9
 BLIMP_AXIS_SLIDER_HEIGHT=100
 
@@ -45,16 +45,18 @@ class bleBotGui():
     axisDirMap = {0:"01", 1:"01", 2:"01"}
 
     def __init__( self, ble_adr, ble_bot, type ):
-        # Set up the individual controls.
+        # Set up the frame (table) representing this bot's controls.
         self.bot = ble_bot
         self.frame = gui.Table()
-        self.frame.tr()
-        self.frame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
-    
+
         # Build the table from the gui parts.
         #####################################
 
-        # Build the table of axes.
+        # Add the heading.
+        self.frame.tr()
+        self.frame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
+    
+        # Build the table of axes, including sliders and faults.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
         self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.HSlider(value=0, min=-63, max=63, size=1, width=BLIMP_AXIS_SLIDER_WIDTH), gui.Label("Temp")]
         self.axisBorders = [{'border_right':BLIMP_INNER_BORDER, 'border_left':BLIMP_OUTER_BORDER}, {'border_right':BLIMP_INNER_BORDER}, {'border_right':BLIMP_OUTER_BORDER}, {}]
@@ -77,7 +79,7 @@ class bleBotGui():
         self.frame.td(self.rssiLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=3)
         self.frame.td(self.tempLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
                               
-        # Build the table with the connect/reconnect info and buttons.
+        # Build the connection info and enable/disable button.
         if bleBot.DEFAULT_ENABLED:
             self.stateLabel = gui.Label("Waiting...", background=YELLOW)
             self.disableButtonLabel = gui.Label("Disable")
@@ -90,6 +92,9 @@ class bleBotGui():
         self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_rigth':BLIMP_INNER_BORDER}, colspan=3)
         self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
 
+        # Done!
+        return
+    
     def updateConnectionState(self):
         if self.bot.connectionState == bleBot.CONNECTED:
             self.stateLabel.set_text("Connected")
@@ -128,7 +133,7 @@ class bleBotGui():
                 self.axisFaultLabel[i].set_text("No Fault")
                 self.axisFaultLabel[i].style.background = GREEN
             else:
-                self.axisFaultLabel[i].set_text("Fault: {:02X}".format(self.bot.lastFault[i]))
+                self.axisFaultLabel[i].set_text(self.bot.decodeFaultsShort(self.bot.lastFault[i]))
                 self.axisFaultLabel[i].style.background = RED
             
 class bleBot():
@@ -201,6 +206,9 @@ class bleBot():
         if (faultValue & 0x10):
             faults.append("ILIMIT")
         return faults
+
+    def decodeFaultsShort(self, faultValue):
+        return "{:s}|{:s}|{:s}|{:s}|{:s}".format("FA" if faultValue & 0x01 else "fa", "O" if faultValue & 0x02 else "oc", "UV" if faultValue & 0x04 else "uv", "OT" if faultValue & 0x08 else "ot", "IL" if faultValue & 0x10 else "il") 
     
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
@@ -225,9 +233,10 @@ class bleBot():
             self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
             self.gui.tempLabel.set_text("Temp: {:.1f}\xb0F".format(self.curTemp))
             for i in range(0, 3):
-                self.lastFault[i] = ord(data[8+i])
-                if (self.lastFault[i] != 0):
-                    self.lastFaultTime[i] = time.time()
+                j = self.gui.axisNoMap[i]
+                self.lastFault[j] = ord(data[8+i])
+                if (self.lastFault[j] != 0):
+                    self.lastFaultTime[j] = time.time()
             self.gui.updateFaults()
             if DEBUG_UPDATE:
                 print "{:s} update> rssi {:d}, temp {:.1f}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, self.curRSSI, self.curTemp, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
