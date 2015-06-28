@@ -11,7 +11,6 @@ from pgu import gui
 from lib.constants import XBOX, KEYBOARD
 
 # Flags
-DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 DEBUG_TX = False        # Print debug messages for transmissions.
 DEBUG_RX = True         # Print debug messages for generic received
                         # text.
@@ -35,60 +34,49 @@ CYAN=(0,255,255)
 PURPLE=(255,0,255)
 YELLOW=(255,255,0)        
 
-class bleBotGui():
-    WIDTH=320
-    HEIGHT=240
-    AXIS_WIDTH=WIDTH/3
-    BLIMP_OUTER_BORDER=3
+BLIMP_OUTER_BORDER=3
+BLIMP_INNER_BORDER=1
+BLIMP_AXIS_WIDTH=100
 
+class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
 
     def __init__( self, ble_adr, ble_bot, type ):
         # Set up the individual controls.
         self.bot = ble_bot
-        self.outerFrame = gui.Table()
-        self.outerFrame.tr()
-        self.outerFrame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=1024, style={'border_left':self.BLIMP_OUTER_BORDER, 'border_right':self.BLIMP_OUTER_BORDER, 'border_top':self.BLIMP_OUTER_BORDER})
-        self.frame = gui.Table(width=self.WIDTH, style={'border_left':self.BLIMP_OUTER_BORDER, 'border_right':self.BLIMP_OUTER_BORDER, 'border_bottom':self.BLIMP_OUTER_BORDER})
-        self.outerFrame.tr()
-        self.outerFrame.td(self.frame)
+        self.frame = gui.Table()
+        self.frame.tr()
+        self.frame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
     
         # Build the table from the gui parts.
         #####################################
 
         # Build the table of axes.
-        self.axisOuterTable = gui.Table()
-        self.frame.tr()
-        self.frame.td(self.axisOuterTable, style={'border_top':1, 'border_bottom':1})
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
         self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.HSlider(value=0, min=-63, max=63, size=1, width=100), gui.Label("Temp")]
-        self.axisBorders = [{'border_right':1}, {'border_right':1}, {}, {}]
+        self.axisBorders = [{'border_right':BLIMP_INNER_BORDER, 'border_left':BLIMP_OUTER_BORDER}, {'border_right':BLIMP_INNER_BORDER}, {'border_right':BLIMP_OUTER_BORDER}, {}]
         self.axisFaultLabel = [gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN)]
         # Note that we're currently ignoring the igniter box.
-        self.axisOuterTable.tr()
+        self.frame.tr()
         for i in range(0, 3):         
-            self.axisOuterTable.td(self.axisLabels[i], width=self.AXIS_WIDTH, style=self.axisBorders[i])
-        self.axisOuterTable.tr()
+            self.frame.td(self.axisLabels[i], style=self.axisBorders[i], colspan=2, width=BLIMP_AXIS_WIDTH)
+        self.frame.tr()
         for i in range(0, 3): 
-            self.axisOuterTable.td(self.axisSliders[i], style=self.axisBorders[i])
-        self.axisOuterTable.tr()
+            self.frame.td(self.axisSliders[i], style=self.axisBorders[i], colspan=2)
+        self.frame.tr()
         for i in range(0, 3): 
-            self.axisOuterTable.td(self.axisFaultLabel[i], style=self.axisBorders[i])
+            self.frame.td(self.axisFaultLabel[i], style=self.axisBorders[i], colspan=2)
 
         # Build the status section.
-        self.statusTable = gui.Table()
         self.rssiLabel = gui.Label("RSSI: ?")
         self.tempLabel = gui.Label("Temp: ?")
-        self.statusTable.tr()
-        self.statusTable.td(self.rssiLabel, style={'border_right':1}, width=self.WIDTH/2)
-        self.statusTable.td(self.tempLabel, width=self.WIDTH/2)
         self.frame.tr()
-        self.frame.td(self.statusTable, style={'border_bottom':1})
+        self.frame.td(self.rssiLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=3)
+        self.frame.td(self.tempLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
                               
         # Build the table with the connect/reconnect info and buttons.
-        self.connectionTable = gui.Table()
-        if DEFAULT_ENABLED:
+        if bleBot.DEFAULT_ENABLED:
             self.stateLabel = gui.Label("Waiting...", background=YELLOW)
             self.disableButtonLabel = gui.Label("Disable")
         else:
@@ -96,11 +84,9 @@ class bleBotGui():
             self.disableButtonLabel = gui.Label("Enable")
         self.disableButton = gui.Button(self.disableButtonLabel)
         self.disableButton.connect(gui.CLICK, self.disableOrEnable, None)
-        self.connectionTable.tr()
-        self.connectionTable.td(self.stateLabel, width=self.WIDTH/2)
-        self.connectionTable.td(self.disableButton, width=self.WIDTH/2)
         self.frame.tr()
-        self.frame.td(self.connectionTable)
+        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_rigth':BLIMP_INNER_BORDER}, colspan=3)
+        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
 
     def updateConnectionState(self):
         if self.bot.connectionState == bleBot.CONNECTED:
@@ -154,7 +140,8 @@ class bleBot():
     WAITING=2
     CONNECTING=3
     FAILED=4
-    
+    DEFAULT_ENABLED = True  # Enable blimps when the program is started.
+
     def __init__( self, ble_adr, type ):
 
         # Set up connection-related data.
@@ -162,7 +149,7 @@ class bleBot():
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
-        if DEFAULT_ENABLED:
+        if bleBot.DEFAULT_ENABLED:
             self.connectionState = self.WAITING
         else:
             self.connectionState = self.DISABLED

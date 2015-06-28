@@ -6,8 +6,8 @@ import time
 import argparse
 import pygame, sys
 
-DISPLAY_UPDATE_TIME = 0 # Don't update the display more than this
-                        # often (s).
+DISPLAY_UPDATE_TIME = 0.0 # Don't update the display more than this
+                          # often (s).
 
 from ctypes.util import find_library
 from pygame.locals import *
@@ -19,6 +19,7 @@ from lib.controller import (
     has_xbox_controller,
     KeyboardController,
     XboxController,
+    bleBot,
 )
 
 def doQuit(value = None):
@@ -31,7 +32,6 @@ def doDisableAll(value = None):
     for controller in controllers:
         controller.bleBlimp.disable()
     
-
 def doEnableAll(value = None):
     for controller in controllers:
         controller.bleBlimp.enable()
@@ -42,6 +42,11 @@ group.add_argument('--default-disabled', action='store_true', help='disable all 
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
 args = parser.parse_args()
 
+# If it was set on the command line, override the default blimp state.
+if args.default_enabled:
+    bleBot.DEFAULT_ENABLED = True
+elif args.default_disabled:
+    bleBot.DEFAULT_ENABLED = False
 
 # Set up controllers and calculate gui controller layout.
 if has_xbox_controller():
@@ -78,24 +83,15 @@ for c in range(0, numControllers):
         guiAppTable.tr()
     elif (c != 0):
         guiAppTable.td(gui.Spacer(1,1))
-    guiAppTable.td(controller.bleBlimp.gui.outerFrame)
+    guiAppTable.td(controller.bleBlimp.gui.frame)
 guiApp.init(guiAppTable)
 
 lastDisplayUpdateTime = 0
 
-# If it was set on the command line, override the default blimp state.
-if args.default_enabled:
-    for controller in controllers:
-        controller.bleBlimp.enable()
-elif args.default_disabled:
-    for controller in controllers:
-        controller.bleBlimp.disable()
-    
-
 while True:
     foundConnecting = False
     foundTimedOut = False
-    
+
     # Check for and update any pending connection attempts.
     for controller in controllers:
         if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTING:
@@ -103,7 +99,7 @@ while True:
             controller.bleBlimp.checkCompleteConnection()
             foundConnecting = True
         elif controller.bleBlimp.connectionState == controller.bleBlimp.FAILED:
-            # We have failed a connection, retry.
+            # We have failed a connection that hasn't timed out yet, retry.
             controller.bleBlimp.connect()
             foundConnecting = True
         elif controller.bleBlimp.connectionState == controller.bleBlimp.TIMED_OUT:
@@ -121,7 +117,7 @@ while True:
         for controller in controllers:
             if controller.bleBlimp.connectionState == controller.bleBlimp.TIMED_OUT:
                 controller.bleBlimp.updateConnectionState(controller.bleBlimp.WAITING)
-            
+
     # Process all events in queue, including keybaord controller events.
     events = pygame.event.get()
     for event in events:
@@ -157,7 +153,9 @@ while True:
         
     # Update the gui display if sufficient time has passed.    
     loopTime = time.time()
-    if (loopTime - lastDisplayUpdateTime > DISPLAY_UPDATE_TIME):
+    if loopTime - lastDisplayUpdateTime >= DISPLAY_UPDATE_TIME:
         lastDisplayUpdateTime = loopTime
-        rects = guiApp.update(guiApp.screen)
+        rects = guiApp.update()
         pygame.display.update(rects)
+
+
