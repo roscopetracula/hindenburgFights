@@ -211,7 +211,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
   char msgCounter = *data++;
   len -= 2;
   
-#if DEBUG_RECEIVE_LONG
+#ifdef DEBUG_RECEIVE_LONG
   char buf[256];
   snprintf(buf, 256, "|message received [%d]: [p:%02x] [c:%02x] [l:%d]|\n", lastPingMillis - previousPingMillis, protoVersion, msgCounter, len);
   DBGPRINT(buf);
@@ -265,9 +265,16 @@ void RFduinoBLE_onReceive(char *data, int len) {
     if (0x00<=data[cmdStart+0] && data[cmdStart+0]<=0x02) {
       nextMotorStates[data[cmdStart+0]][0] = data[cmdStart+1];
       nextMotorStates[data[cmdStart+0]][1] = data[cmdStart+2];
-    }
-    else if (data[cmdStart+0] == 0x03) {
+    } else if (data[cmdStart+0] == 0x03) {
       nextControllerTriggerState = data[cmdStart+1];
+    } else if (data[cmdStart+0] == 0x04) {
+      RFduino_systemReset();     
+    } else {
+      // We don't know this command.
+      char buf[32];
+      snprintf(buf, 32, "Unknown command number %d.\n", data[cmdStart+0]);
+      bleSendString(buf);
+      DBGPRINT(buf);
     }
   }
   // now that we've recieved valid data it's possible to timeout.

@@ -36,6 +36,10 @@ def doEnableAll(value = None):
     for controller in controllers:
         controller.bleBlimp.enable()
 
+def doResetAll(value = None):
+    for controller in controllers:
+        controller.bleBlimp.reset()
+
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
@@ -66,10 +70,13 @@ guiDisableAllButton=gui.Button("Disable All")
 guiDisableAllButton.connect(gui.CLICK, doDisableAll, None);
 guiEnableAllButton=gui.Button("Enable All")
 guiEnableAllButton.connect(gui.CLICK, doEnableAll, None);
+guiResetAllButton=gui.Button("Reset All")
+guiResetAllButton.connect(gui.CLICK, doResetAll, None);
 guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None);
 guiAppButtonsTable.td(guiDisableAllButton)
 guiAppButtonsTable.td(guiEnableAllButton)
+guiAppButtonsTable.td(guiResetAllButton)
 guiAppButtonsTable.td(guiQuitButton)
 if (numControllers == 1):
     guiAppTable.tr()

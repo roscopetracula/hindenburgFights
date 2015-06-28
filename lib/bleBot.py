@@ -175,6 +175,10 @@ class bleBot():
         self.gui = bleBotGui(ble_adr, self, type)
         return
 
+    def reset(self):
+        if self.connectionState == self.CONNECTED:
+            self.sendMessage("040000")
+            
     def disable(self):
         if self.connectionState != self.DISABLED:
             self.disconnect()
@@ -412,11 +416,6 @@ class bleBot():
         # Another option would be to do something along the lines of
         # ((counter + 1) % 256) % 255.
         self.counter = self.counter + 1 if self.counter < 254 else 0
-        self.lastTxTime = time.time()
-
-    # Transmits a channel/data pair.
-    def sendToChannel(self, channel, data):
-        self.sendMessage(channel+data)
 
     # Send a full state update.
     def txState(self):
@@ -426,6 +425,7 @@ class bleBot():
             tmpMsg += "0"+str(i)+"".join(self.motorState[i])
         self.lastTxIgniterState = self.igniterState
         tmpMsg += "03"+"".join(self.igniterState)
+        self.lastTxTime = time.time()
         self.sendMessage(tmpMsg)
 
     # Send a full state update when necessary (time out, new data, etc).
