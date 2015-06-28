@@ -87,10 +87,15 @@ class bleBotGui():
             self.stateLabel = gui.Label("DISABLED", background=RED)
             self.disableButtonLabel = gui.Label("Enable")
         self.disableButton = gui.Button(self.disableButtonLabel)
-        self.disableButton.connect(gui.CLICK, self.disableOrEnable, None)
+        self.disableButton.connect(gui.CLICK, self.doDisableOrEnable, None)
+        self.resetButtonLabel = gui.Label("Reset")
+        self.resetButton = gui.Button(self.resetButtonLabel)
+        self.resetButton.disabled = True
+        self.resetButton.connect(gui.CLICK, self.doReset, None)
         self.frame.tr()
-        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_rigth':BLIMP_INNER_BORDER}, colspan=3)
-        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
+        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=4)
+        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER}, colspan=1)
+        self.frame.td(self.resetButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
 
         # Done!
         return
@@ -99,24 +104,33 @@ class bleBotGui():
         if self.bot.connectionState == bleBot.CONNECTED:
             self.stateLabel.set_text("Connected")
             self.stateLabel.style.background = GREEN
+            self.resetButton.disabled = False
         elif self.bot.connectionState == bleBot.CONNECTING:
             self.stateLabel.set_text("Connecting...")
             self.stateLabel.style.background = YELLOW
+            self.resetButton.disabled = True
         elif self.bot.connectionState == bleBot.FAILED:
             self.stateLabel.set_text("Retrying...")
             self.stateLabel.style.background = YELLOW
+            self.resetButton.disabled = True
         elif self.bot.connectionState == bleBot.WAITING or self.bot.connectionState == bleBot.TIMED_OUT:
             self.stateLabel.set_text("Waiting...")
             self.stateLabel.style.background = YELLOW
+            self.resetButton.disabled = True
         elif self.bot.connectionState == bleBot.DISABLED:
             self.stateLabel.set_text("DISABLED")
             self.stateLabel.style.background = RED
+            self.resetButton.disabled = True
         else:
             self.stateLabel.set_text("UNKNOWN {:d}".format(self.bot.connectionState))
             self.stateLabel.style.background = PURPLE            
+            self.resetButton.disabled = True
         return
 
-    def disableOrEnable(self, value):
+    def doReset(self, value):
+        self.bot.reset()
+        
+    def doDisableOrEnable(self, value):
         if self.bot.connectionState != bleBot.DISABLED:
             self.bot.disable()
         else:
