@@ -142,6 +142,9 @@ while True:
         elif (event.type == KEYDOWN and event.key == pygame.K_d):
             doDisableAll()
             
+        elif (event.type == KEYDOWN and event.key == pygame.K_r):
+            doResetAll()
+            
         elif (event.type == KEYDOWN or event.type == KEYUP):
             for controller in controllers:
                 if isinstance(controller, KeyboardController) and \
