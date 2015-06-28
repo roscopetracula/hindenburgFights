@@ -37,6 +37,8 @@ YELLOW=(255,255,0)
 BLIMP_OUTER_BORDER=3
 BLIMP_INNER_BORDER=1
 BLIMP_AXIS_WIDTH=100
+BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*0.9
+BLIMP_AXIS_SLIDER_HEIGHT=100
 
 class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
@@ -54,7 +56,7 @@ class bleBotGui():
 
         # Build the table of axes.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
-        self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.VSlider(value=0, min=-63, max=63, size=1, height=100), gui.HSlider(value=0, min=-63, max=63, size=1, width=100), gui.Label("Temp")]
+        self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.HSlider(value=0, min=-63, max=63, size=1, width=BLIMP_AXIS_SLIDER_WIDTH), gui.Label("Temp")]
         self.axisBorders = [{'border_right':BLIMP_INNER_BORDER, 'border_left':BLIMP_OUTER_BORDER}, {'border_right':BLIMP_INNER_BORDER}, {'border_right':BLIMP_OUTER_BORDER}, {}]
         self.axisFaultLabel = [gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN)]
         # Note that we're currently ignoring the igniter box.
