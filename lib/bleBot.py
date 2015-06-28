@@ -93,9 +93,9 @@ class bleBotGui():
         self.resetButton.disabled = True
         self.resetButton.connect(gui.CLICK, self.doReset, None)
         self.frame.tr()
-        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=4)
-        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER}, colspan=1)
-        self.frame.td(self.resetButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
+        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER}, colspan=2)
+        self.frame.td(self.resetButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=2)
 
         # Done!
         return
