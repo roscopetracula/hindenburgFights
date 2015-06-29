@@ -147,7 +147,8 @@ class bleBotGui():
         # turns yellow but the fault information remains.
         for i in range(0, 3):
             if (self.bot.lastFault[i] == 0):
-                self.axisFaultLabel[i].style.background = YELLOW
+                if (self.axisFaultLabel[i].style.background == RED):
+                    self.axisFaultLabel[i].style.background = YELLOW
             else:
                 self.axisFaultLabel[i].set_text(self.bot.decodeFaultsShort(self.bot.lastFault[i]))
                 self.axisFaultLabel[i].style.background = RED
