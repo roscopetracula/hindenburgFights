@@ -3,8 +3,10 @@
 #include "rfduinoControl.h"
 
 // General timeouts/intevals.
-#define CONNECTION_TIMEOUT 1000 /* Time (ms) with no received messages before all motors are turned off. */
-#define UPDATE_INTERVAL    1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
+#define CONNECTION_TIMEOUT   1000 /* Time (ms) with no received messages before all motors are turned off. */
+#define UPDATE_INTERVAL      1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
+#define FAST_UPDATE_INTERVAL  100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
+
 
 // Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
@@ -52,7 +54,8 @@ unsigned long igniterLastOn = 0;
 unsigned long igniterTriggerReleased = 0;
 bool timeoutPossible = 0;
 bool isConnected = false;
-#ifdef UPDATE_INTERVAL
+bool fastUpdate = false;
+#if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
 unsigned long lastUpdateMillis = 0;
 #endif
 
@@ -147,11 +150,12 @@ void loop()
   updateControllerTrigger(nextControllerTriggerState);
   updateIgniterState();
 
-#ifdef UPDATE_INTERVAL
+#if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
   // Check if it's time to send an update.
-  if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL) {
+  if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL ||
+     (fastUpdate && loopMillis - lastUpdateMillis >= FAST_UPDATE_INTERVAL)) {
      float curTemp = RFduino_temperature(FAHRENHEIT);
-     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 3;
+     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 5;
      char buf[bufLen];
      buf[0] = RETURN_MSG_UPDATE;
      memcpy(buf+1, &curRSSI, sizeof(curRSSI));
@@ -160,8 +164,11 @@ void loop()
        buf[1 + sizeof(curRSSI) + sizeof(curTemp) + i] = faultCollectors[i];
        faultCollectors[i] = 0;
      }
+     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 3] = igniterStateByte;
+     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 4] = blimpTriggerState;
      bleSendData(buf, bufLen);
      lastUpdateMillis = millis();
+     fastUpdate = false;
    }
 #endif
 }
@@ -315,6 +322,7 @@ void processAllMotorUpdates(void) {
 }
 
 void setIgniter(byte igniterCode) {
+  // Set the igniter and then do a quick update.
   if (igniterCode==0x01){
       digitalWrite(IGNITER_PIN,HIGH);
       DBGPRINTLN("IGNITER ON");
@@ -323,12 +331,11 @@ void setIgniter(byte igniterCode) {
       DBGPRINTLN("IGNITER OFF");
     }
   igniterStateByte = igniterCode;
+  fastUpdate = true;
 }
 
 void updateIgniter(byte igniterCode) {
-  if (igniterCode == igniterStateByte)
-    return;
-  else
+  if (igniterCode != igniterStateByte)
     setIgniter(igniterCode);
 }
 
@@ -419,6 +426,7 @@ void updateBlimpTrigger(byte triggerCode) {
   if (triggerCode != blimpTriggerState) {
     blimpTriggerState = triggerCode;
     DBGPRINTF("blimp trigger state change: %d%s\n", triggerCode, (triggerCode == 1 && igniterState == IGNITER_STATE_LOCKED) ? " (but IGNITER_STATE_LOCKED)" : "");
+    fastUpdate = true;
   }
 }
 
