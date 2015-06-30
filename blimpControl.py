@@ -48,7 +48,7 @@ def doResetAll(value = None):
 
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
-parser.add_argument('--scan-device', action='store', help='specify bluetooth device to use for background scanning (default hci0)', default='hci0')
+parser.add_argument('--scan-device', action='store', help='specify bluetooth device to use for background scanning (default hci0); specifying any invalid device will turn off scanning', default='hci0')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
