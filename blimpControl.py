@@ -5,10 +5,14 @@ import sys
 import time
 import argparse
 import pygame, sys
+import subprocess
+import pexpect
 
 DISPLAY_UPDATE_TIME = 0.0   # Don't update the display more than this
                             # often (s).
+BLIMP_MISSING_TIME  = 1.0   # Time (s) without an update before a blimp is marked missing.
 GAME_NAME = "Battle Blimps" # Game name for window title(s).
+DEBUG_SCAN = False          # Debug blimp scanning.
 
 from ctypes.util import find_library
 from pygame.locals import *
@@ -44,6 +48,7 @@ def doResetAll(value = None):
 
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
+parser.add_argument('--scan-device', action='store', help='specify bluetooth device to use for background scanning (default hci0)', default='hci0')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
@@ -55,6 +60,21 @@ if args.default_enabled:
     bleBot.DEFAULT_ENABLED = True
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
+
+# Start scanning for blimps.
+try:
+    hcitoolScanner = pexpect.spawn("hcitool -i {:s} lescan --passive --duplicate".format(args.scan_device));
+except:
+    print "hcitool scanner failed to start on device {:s}, not scanning".format(args.scan_device)
+    hcitoolScanner = None
+# Note that at start, all blimps are timed out.  This means that if
+# you restart the GUI very quickly, there will be a short delay until
+# the blimp realizes it is disconnected and starts advertising again.
+# If this ever becomes an issue, we can default to non-missing until
+# the first period expires.  This may, in turn, cause a delay while
+# the first connect fails (if the blimp is missing), but then should
+# return to normal.
+lastScan = {}
 
 # Set up controllers and calculate gui controller layout.
 if has_xbox_controller():
@@ -104,8 +124,54 @@ while True:
     foundConnecting = False
     foundTimedOut = False
 
+    # Check for any blimp updates.
+    if hcitoolScanner:
+        try:
+            res = hcitoolScanner.expect(["LE Scan ...", "([0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]) RFduino Blimp", pexpect.TIMEOUT], timeout=0)
+            if (res == 1):
+                addr = hcitoolScanner.match.group(1)
+                lastScan[addr.lower()] = time.time()
+        except pexpect.EOF as e:
+            if DEBUG_SCAN:
+                print "hcitool scanner closed on device {:s}, ending scanning and cancelling MISSING status".format(args.scan_device)
+            hcitoolScanner = None
+            for controller in controllers:
+                if controller.bleBlimp.connectionState == controller.bleBlimp.MISSING:
+                    controller.bleBlimp.updateConnectionState(controller.bleBlimp.TIMED_OUT)
+        
     # Check for and update any pending connection attempts.
+    loopTime = time.time()
     for controller in controllers:
+
+        # Only do timing out of we have a functional hcitool scanner.
+        if hcitoolScanner:
+            # If we're not connected, disabled, or missing, and don't have
+            # a recent update, we should be missing.
+            if not controller.bleBlimp.connectionState in (controller.bleBlimp.CONNECTED, controller.bleBlimp.DISABLED, controller.bleBlimp.MISSING):
+                lastUpdate = lastScan.get(controller.bleBlimp.ble_adr.lower(), 0)
+                if (loopTime - lastUpdate > BLIMP_MISSING_TIME):
+                    if DEBUG_SCAN:
+                        print controller.bleBlimp.ble_adr, "is MISSING, marking it so"
+                    controller.bleBlimp.disconnect()
+                    controller.bleBlimp.updateConnectionState(controller.bleBlimp.MISSING)
+            if controller.bleBlimp.connectionState == controller.bleBlimp.MISSING:
+                # See if we have found the missing blimp.  If so,
+                # transition to TIMED_OUT so it doesn't do any weird queue
+                # jumping.
+                lastUpdate = lastScan.get(controller.bleBlimp.ble_adr.lower(), 0)
+                if (loopTime - lastUpdate <= BLIMP_MISSING_TIME):
+                    if DEBUG_SCAN:
+                        print controller.bleBlimp.ble_adr, "is FOUND"
+                    controller.bleBlimp.updateConnectionState(controller.bleBlimp.TIMED_OUT)
+            if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTED:
+                # Update the last time we saw the blimp.  If we want this
+                # to be more accurate, we can do it on receive, but this
+                # setup encourages a quick reconnect even if the
+                # disconnect happens towards the end of an update
+                # period. (Note that the blimp is not advertising when
+                # connected.)
+                lastScan[controller.bleBlimp.ble_adr.lower()] = loopTime
+
         if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTING:
             # We are in the middle of an asynchronous connect, check the status.
             controller.bleBlimp.checkCompleteConnection()

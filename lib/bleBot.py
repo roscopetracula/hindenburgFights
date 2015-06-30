@@ -121,6 +121,10 @@ class bleBotGui():
             self.stateLabel.set_text("DISABLED")
             self.stateLabel.style.background = RED
             self.resetButton.disabled = True
+        elif self.bot.connectionState == bleBot.MISSING:
+            self.stateLabel.set_text("MISSING")
+            self.stateLabel.style.background = RED
+            self.resetButton.disabled = True
         else:
             self.stateLabel.set_text("UNKNOWN {:d}".format(self.bot.connectionState))
             self.stateLabel.style.background = PURPLE            
@@ -158,6 +162,7 @@ class bleBot():
     RETURN_MSG_STRING = 0x00
     RETURN_MSG_UPDATE = 0x01
     RETURN_MSG_FAULT = 0x02   
+    MISSING=-2
     DISABLED=-1
     CONNECTED=0
     TIMED_OUT=1
