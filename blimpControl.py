@@ -7,6 +7,7 @@ import argparse
 import pygame, sys
 import subprocess
 import pexpect
+import string
 
 DISPLAY_UPDATE_TIME = 0.0   # Don't update the display more than this
                             # often (s).
@@ -48,7 +49,7 @@ def doResetAll(value = None):
 
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
-parser.add_argument('--scan-device', action='store', help='specify bluetooth device to use for background scanning (default hci0); specifying any invalid device will turn off scanning', default='hci0')
+parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a ull device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
@@ -61,12 +62,62 @@ if args.default_enabled:
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
 
+
+# Discover bluetooth devices for scanning.
+bleDeviceNames = []
+hcitoolScanners = {}
+# Parse any provided list of bluetooth devices and add those to the scanners list.
+for dev in string.split(args.scan_devices,","):
+    if dev == "+":
+        # For "+", use hcitool to find all devices.
+        try:
+            hcitoolDevs = pexpect.spawn("hcitool dev")
+        except:
+            if DEBUG_SCAN:
+                print "unable to obtain devs from hcitool"
+        else:
+            res = 0
+            while res != 2:
+                res = hcitoolDevs.expect(["Devices:", "(hci\d+)\s+([0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F])", pexpect.EOF])
+                if res == 1:
+                    newDev = hcitoolDevs.match.group(1)
+                    bleDeviceNames.append(newDev)
+                    if DEBUG_SCAN:
+                        print "hcitool reported possible scanning device {:s}".format(newDev)
+        finally:
+            hcitoolDevs.close()
+
+    elif dev == "-":
+        # "-" means no device is added.
+        if DEBUG_SCAN:
+            print "null device added from command line"
+        pass
+
+    else:
+        # Otherwise, assume this is a device name.
+        bleDeviceNames.append(dev)
+        if DEBUG_SCAN:
+            print "added device {:s} from command line".format(dev)
+
+if DEBUG_SCAN:
+    print "devices to be scanned: {:s}".format(bleDeviceNames)
+
+for bleDeviceName in bleDeviceNames:
+    try:
+        hcitoolScanners[bleDeviceName]
+    except:
+        try:
+            newScanner = pexpect.spawn("hcitool -i {:s} lescan --passive --duplicate".format(bleDeviceName))
+        except:
+            if DEBUG_SCAN:
+                print "hcitool scanner failed to start on device {:s}, not scanning".format(bleDeviceName)
+            newScanner.close()
+        else:
+            hcitoolScanners[bleDeviceName] = newScanner
+            if DEBUG_SCAN:
+                print "hcitool opened device {:s}".format(bleDeviceName)
+        
 # Start scanning for blimps.
-try:
-    hcitoolScanner = pexpect.spawn("hcitool -i {:s} lescan --passive --duplicate".format(args.scan_device));
-except:
-    print "hcitool scanner failed to start on device {:s}, not scanning".format(args.scan_device)
-    hcitoolScanner = None
 # Note that at start, all blimps are timed out.  This means that if
 # you restart the GUI very quickly, there will be a short delay until
 # the blimp realizes it is disconnected and starts advertising again.
@@ -125,26 +176,38 @@ while True:
     foundTimedOut = False
 
     # Check for any blimp updates.
-    if hcitoolScanner:
+    for dev in hcitoolScanners.keys():
+        hcitoolScanner = hcitoolScanners[dev]
         try:
             res = hcitoolScanner.expect(["LE Scan ...", "([0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]) RFduino Blimp", pexpect.TIMEOUT], timeout=0)
-            if (res == 1):
-                addr = hcitoolScanner.match.group(1)
-                lastScan[addr.lower()] = time.time()
+            if res == 0:
+                if DEBUG_SCAN:
+                    print "hcitool reported scanning on device {:s}".format(dev)
+            if res == 1:
+                addr = hcitoolScanner.match.group(1).lower()
+                lastScan[addr] = time.time()
+                if DEBUG_SCAN:
+                    print "hcitool reported blimp {:s} on device {:s}".format(addr, dev)
         except pexpect.EOF as e:
             if DEBUG_SCAN:
-                print "hcitool scanner closed on device {:s}, ending scanning and cancelling MISSING status".format(args.scan_device)
-            hcitoolScanner = None
-            for controller in controllers:
-                if controller.bleBlimp.connectionState == controller.bleBlimp.MISSING:
-                    controller.bleBlimp.updateConnectionState(controller.bleBlimp.TIMED_OUT)
-        
+                print "hcitool scanner closed on device {:s}, ending scanning on that device; {:d} {:s}".format(dev, len(hcitoolScanners)-1, "device remains" if len(hcitoolScanners) == 2 else "devices remain")
+            hcitoolScanner.close()
+            del hcitoolScanners[dev]
+            # If we have no more scanners, reset all missing blimps to
+            # TIMED_OUT so they will try to connect next cycle.
+            if len(hcitoolScanners) == 0:
+                if DEBUG_SCAN:
+                    print "no scanners remaining, returning MISSING blimps to active and disabling scanning"
+                for controller in controllers:
+                    if controller.bleBlimp.connectionState == controller.bleBlimp.MISSING:
+                        controller.bleBlimp.updateConnectionState(controller.bleBlimp.TIMED_OUT)
+                
     # Check for and update any pending connection attempts.
     loopTime = time.time()
     for controller in controllers:
 
         # Only do timing out of we have a functional hcitool scanner.
-        if hcitoolScanner:
+        if len(hcitoolScanners) > 0:
             # If we're not connected, disabled, or missing, and don't have
             # a recent update, we should be missing.
             if not controller.bleBlimp.connectionState in (controller.bleBlimp.CONNECTED, controller.bleBlimp.DISABLED, controller.bleBlimp.MISSING):
