@@ -75,10 +75,13 @@ class bleBotGui():
         # Build the status section.
         self.rssiLabel = gui.Label("RSSI: ?")
         self.tempLabel = gui.Label("Temp: ?")
+        self.trgLabel = gui.Label("trg", background=GREEN);
+        self.ignLabel = gui.Label("ign", background=GREEN);
         self.frame.tr()
-        self.frame.td(self.rssiLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=3)
-        self.frame.td(self.tempLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=3)
-                              
+        self.frame.td(self.rssiLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.tempLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.trgLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
+        self.frame.td(self.ignLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
         # Build the connection info and enable/disable button.
         if bleBot.DEFAULT_ENABLED:
             self.stateLabel = gui.Label("Waiting...", background=YELLOW)
@@ -188,6 +191,8 @@ class bleBot():
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
         self.lastTxIgniterState = ("00","00") # send ["01",xx] for on, anything else for off
+        self.ignState = 0
+        self.trgState = 0
         self.lastTxTime = 0
         self.counter = 0xff
         self.curReceiveString = ""
@@ -258,14 +263,36 @@ class bleBot():
             self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
             self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
             self.gui.tempLabel.set_text("Temp: {:.1f}\xb0F".format(self.curTemp))
+
+            # Update the igniter and trigger displays if they have changed.
+            if (self.ignState != ord(data[8+3])):
+                self.ignState = ord(data[8+3])
+                if self.ignState:
+                    self.gui.ignLabel.set_text("IGN")
+                    self.gui.ignLabel.style.background = RED
+                else:
+                    self.gui.ignLabel.set_text("ign")
+                    self.gui.ignLabel.style.background = GREEN
+            if (self.trgState != ord(data[8+4])):
+                self.trgState = ord(data[8+4])
+                if self.trgState:
+                    self.gui.trgLabel.set_text("TRG")
+                    self.gui.trgLabel.style.background = RED
+                else:
+                    self.gui.trgLabel.set_text("trg")
+                    self.gui.trgLabel.style.background = GREEN
+
+            # Get the fault data.
             for i in range(0, 3):
                 j = self.gui.axisNoMap[i]
                 self.lastFault[j] = ord(data[8+i])
                 if (self.lastFault[j] != 0):
                     self.lastFaultTime[j] = time.time()
             self.gui.updateFaults()
+
+            # Give us debug info.
             if DEBUG_UPDATE:
-                print "{:s} update> rssi {:d}, temp {:.1f}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, self.curRSSI, self.curTemp, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+                print "{:s} update> rssi {:d}, temp {:.1f}, ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, self.curRSSI, self.curTemp, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
 
         elif rcvCmd == self.RETURN_MSG_FAULT:
             # Decode the raw fault data.
