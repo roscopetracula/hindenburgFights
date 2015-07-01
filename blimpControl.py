@@ -234,7 +234,9 @@ while True:
                 # period. (Note that the blimp is not advertising when
                 # connected.)
                 lastScan[controller.bleBlimp.ble_adr.lower()] = loopTime
-
+                # Also, poll the status, which appears to cause pending messages to be received.
+                controller.bleBlimp.btlePeripheral.status()
+                
         if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTING:
             # We are in the middle of an asynchronous connect, check the status.
             controller.bleBlimp.checkCompleteConnection()

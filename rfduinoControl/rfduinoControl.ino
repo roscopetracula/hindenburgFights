@@ -125,7 +125,7 @@ void RFduinoBLE_onRSSI(int rssi) {
 
 void loop()
 {
-  unsigned int loopMillis = millis();
+  unsigned long loopMillis = millis();
   
   // Check for any faults from the motor controllers and clear the ones we find.
   if (digitalRead(FAULT_PIN) == LOW) {
@@ -138,6 +138,7 @@ void loop()
   // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that loopMillis can actually be less than lastPingMillis, as receives are asynchronous. 
   if (loopMillis - lastPingMillis > CONNECTION_TIMEOUT && loopMillis > lastPingMillis && timeoutPossible == 1) {
     DBGPRINTLN(" TIMED OUT ");
+    bleSendString(" TIMED OUT ");
     timeoutPossible = 0; //can only timeout once
     initDevices();
   }

@@ -199,6 +199,7 @@ class bleBot():
         self.lastFault = [0, 0, 0]
         self.lastFaultTime = [0, 0, 0]
         self.lastConnectStart = 0
+        self.lastUpdate = time.time()
         self.gui = bleBotGui(ble_adr, self, type)
         return
 
@@ -292,7 +293,10 @@ class bleBot():
 
             # Give us debug info.
             if DEBUG_UPDATE:
-                print "{:s} update> rssi {:d}, temp {:.1f}, ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, self.curRSSI, self.curTemp, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+                curTime = time.time()
+                print "{:s} update {:.03f}> rssi {:d}, temp {:.1f}, ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, curTime - self.lastUpdate, self.curRSSI, self.curTemp, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+                self.lastUpdate = curTime
+                
 
         elif rcvCmd == self.RETURN_MSG_FAULT:
             # Decode the raw fault data.
