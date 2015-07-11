@@ -10,8 +10,8 @@
 
 // Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
-#define IGNITER_MINIMUM_TIME 1000 /* Time (ms) after release of trigger before the igniter is turned off.  */
-#define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the button has been released.  Will not exceed maximum. */
+#define IGNITER_MINIMUM_TIME 1000 /* Minimum time (ms) after activation of trigger, before the igniter is turned off.  */
+#define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the trigger has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */ 
 
 // Flags
