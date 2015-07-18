@@ -181,6 +181,7 @@ class bleBot():
     def __init__( self, ble_adr, type ):
 
         # Set up connection-related data.
+        self.protocolversion = "01"
         self.controller = None
         self.ble_adr = ble_adr
         self.btlePeripheral = btle.Peripheral()
@@ -263,12 +264,19 @@ class bleBot():
                     print "{:s} rcv> {:s}".format(self.ble_adr, self.curReceiveString)
                 self.curReceiveString = ""
         elif rcvCmd == self.RETURN_MSG_UPDATE:
-            # The update message is just a 4 byte RSSI integer and then a 4 byte temperature float.
+            # The update message starts with a 4 byte RSSI integer and then a 4 byte temperature float.
             self.curRSSI = struct.unpack("<i", "".join(data[0:4]))[0]
             self.curTemp = struct.unpack("f", "".join(data[4:8]))[0]
-            self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
-            self.gui.tempLabel.set_text("Temp: {:.1f}\xb0F".format(self.curTemp))
 
+            # next 3 bytes: fault data
+            for i in range(0, 3):
+                j = self.gui.axisNoMap[i]
+                self.lastFault[j] = ord(data[8+i])
+                if (self.lastFault[j] != 0):
+                    self.lastFaultTime[j] = time.time()
+            self.gui.updateFaults()
+
+            # two bytes: igniter, trigger
             # Update the igniter and trigger displays if they have changed.
             if (self.ignState != ord(data[8+3])):
                 self.ignState = ord(data[8+3])
@@ -287,18 +295,14 @@ class bleBot():
                     self.gui.trgLabel.set_text("trg")
                     self.gui.trgLabel.style.background = GREEN
 
-            # Get the fault data.
-            for i in range(0, 3):
-                j = self.gui.axisNoMap[i]
-                self.lastFault[j] = ord(data[8+i])
-                if (self.lastFault[j] != 0):
-                    self.lastFaultTime[j] = time.time()
-            self.gui.updateFaults()
+            self.batteryVoltage = struct.unpack("<H", "".join(data[13:15]))[0] * 0.01;
+            self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
+            self.gui.tempLabel.set_text("{:.2f}V / {:.1f}\xb0F".format(self.batteryVoltage,self.curTemp))
 
             # Give us debug info.
             if DEBUG_UPDATE:
                 curTime = time.time()
-                print "{:s} update {:.03f}> rssi {:d}, temp {:.1f}, ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, curTime - self.lastUpdate, self.curRSSI, self.curTemp, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+                print "{:s} update {:.03f}> rssi {:d}, temp {:.1f}, batt (:.2f), ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, curTime - self.lastUpdate, self.curRSSI, self.curTemp, self.batteryVoltage, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
                 self.lastUpdate = curTime
                 
 
@@ -464,7 +468,7 @@ class bleBot():
 
     # Sends a message, prepending any protocol data.
     def sendMessage(self, data):
-        self.char_write_cmd("00" + format(self.counter, '02x') + data)
+        self.char_write_cmd(self.protocolversion + format(self.counter, '02x') + data)
         # The counter starts at 0xFF to indicate a new connection and
         # then always rolls over after 0xFE.  This bizarre way of
         # calculating the modulus is used because it starts at 0xFF so
