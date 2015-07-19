@@ -23,7 +23,7 @@
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  EXPANDER                 /* new board - i2c expander */
 
-#define SERIAL_ENABLE
+//#define SERIAL_ENABLE
 //#define DEBUG_RECEIVE_LONG
 //#define EXPANDER
 
@@ -52,7 +52,7 @@
 #endif
 
 // enable battery level detection from pin
-#define BATT_PIN    2
+//#define BATT_PIN    2
 
 #ifdef BATT_PIN
 #define BATT_V_SCALE (2 * 3.6 / 1023.0)
