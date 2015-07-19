@@ -56,12 +56,13 @@
 
 #ifdef BATT_PIN
 #define BATT_V_SCALE (2 * 3.6 / 1023.0)
+#define BATT_V_CUTOFF 3.0
 #undef IGNITER_PIN
 #else
 // if using VDD reference
 #define BATT_V_SCALE (3.6 / 1023.0)
+#define BATT_V_CUTOFF 2.6
 #endif
-#define BATT_V_CUTOFF 3.2
 
 //
 
