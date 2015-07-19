@@ -19,8 +19,8 @@ DEBUG_CONNECT = False   # Print debug messages for connections and
                         # disconnections.
 
 # Constants
-TRANSMISSION_TIMEOUT  = 0.9 # Send an update if we haven't tranmitted
-                            # in this period (s).
+TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
+                             # in this period (s).
 MIN_TRANSMIT_INTERVAL = 0.1 # Don't transmit more than once in this
                             # period (s).
 MAX_CONNECT_TIME = 0.5      # Maximum time (s) to spend on a
@@ -54,7 +54,11 @@ class bleBotGui():
 
         # Add the heading.
         self.frame.tr()
-        self.frame.td(gui.Label(ble_adr + (" (xbox)" if type == XBOX else " (kbd)")), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
+        if (type == XBOX):
+            typename = "xbox"
+        else:
+            typename = "kbd"
+        self.frame.td(gui.Label("{:s} ({:s})".format(ble_adr, typename)), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
     
         # Build the table of axes, including sliders and faults.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
