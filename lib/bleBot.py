@@ -261,7 +261,7 @@ class bleBot():
             self.curReceiveString = self.curReceiveString + data
             if (string.find(data, "\x00") != -1):
                 if DEBUG_RX:
-                    print "{:s} rcv> {:s}".format(self.ble_adr, self.curReceiveString)
+                    print "{:s} {:f} rcv> {:s}".format(self.ble_adr, time.time(), self.curReceiveString)
                 self.curReceiveString = ""
         elif rcvCmd == self.RETURN_MSG_UPDATE:
             # The update message starts with a 4 byte RSSI integer and then a 4 byte temperature float.
