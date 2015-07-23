@@ -179,6 +179,19 @@ void bleSendString(const char *str) {
   }
 }
 
+// Send a printf-style formatted string.  This is currently a bit of a hack, 
+// using a fixed-size temporary buffer.  It should be easy to port asprintf; 
+// we may want to do that.
+void bleNPrintf(int maxLen, const char *format, ...)
+{
+  char buf[maxLen];
+  va_list myargs;
+  va_start(myargs, format);
+  snprintf(buf, maxLen, format, myargs);
+  va_end(myargs);  
+  bleSendString(buf);
+}
+
 // Store any updates to rssi.
 void RFduinoBLE_onRSSI(int rssi) {
   curRSSI = rssi;
@@ -197,7 +210,7 @@ boolean checkMotorFault()
 void loop()
 {
   unsigned long loopMillis = millis();
-
+  
 #ifdef BATT_PIN
     float batteryVoltage = BATT_V_SCALE * analogRead(BATT_PIN);
 #else
