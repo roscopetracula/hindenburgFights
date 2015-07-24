@@ -40,8 +40,8 @@
 #define EXP_REGISTER_OUTPUT 0x01
 #define EXP_REGISTER_CONFIG 0x03
 #define EXP_PIN_IGNITER 3
-#define EXP_PIN_REDLIGHT 4
-#define EXP_PIN_GREENLIGHT 5
+#define EXP_PIN_LED1 4
+#define EXP_PIN_LED2 5
 #define EXP_PIN_FAULT 6
 
 // expander interrupt signal to rfduino, or fault input pin for non-expander board
@@ -54,6 +54,8 @@
 // if using VDD reference
 #define VDD_V_SCALE (3.6 / 1023.0)
 #define VDD_V_CUTOFF 1.8
+
+float batteryCutoff = VDD_V_CUTOFF;
 
 // rfduino pin assignments.
 #define SCL_PIN     6 /* 5 for slimstack board */
@@ -82,6 +84,16 @@ unsigned long lastUpdateMillis = 0;
 #endif
 bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
+
+// state machine to blink LEDs
+#define LEDSTATE_1_ON   0 
+#define LEDSTATE_1_WAIT 1
+#define LEDSTATE_2_ON   2
+#define LEDSTATE_2_WAIT 3
+#define LED_ON_MILLIS 30
+#define LED_OFF_MILLIS 500
+byte ledState = LEDSTATE_1_ON;
+unsigned long ledStateLastChange = 0;
 
 #ifdef SERIAL_ENABLE
 #define DBGPRINT(...) Serial.print(__VA_ARGS__)
@@ -129,6 +141,9 @@ void configureExpander() {
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
     expanderPresent = 1;
+    
+    batteryCutoff = REAL_BATTERY_V_CUTOFF; // new board
+    
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
@@ -269,11 +284,44 @@ float getBatteryVoltage() {
 
 }
 
-float getBatteryMinimumVoltage() {
-  if(expanderPresent) {
-    return REAL_BATTERY_V_CUTOFF;
-  } // else
-  return VDD_V_CUTOFF;  
+void updateLeds(unsigned long *curTime) {
+  unsigned long elapsed = (*curTime) -ledStateLastChange;
+
+  // TODO: alternate lighting for low battery state
+  // TODO: alternate lighting when user pulls xbox trigger (help identify blimp)
+  
+  switch(ledState) {
+case LEDSTATE_1_ON:
+    if(elapsed >= LED_ON_MILLIS) {
+      // turn off
+      setExpanderOutput(EXP_PIN_LED1,1);
+      ledState=LEDSTATE_1_WAIT;
+    }
+    break;    
+case LEDSTATE_2_ON:
+    if(elapsed >= LED_ON_MILLIS) {
+      // turn off
+      setExpanderOutput(EXP_PIN_LED2,1);
+      ledState=LEDSTATE_2_WAIT;
+    }
+    break;    
+case LEDSTATE_1_WAIT:
+    if(elapsed >= LED_OFF_MILLIS) {
+      // turn on
+      setExpanderOutput(EXP_PIN_LED2,0);
+      ledState=LEDSTATE_2_ON;
+    }
+    break;    
+case LEDSTATE_2_WAIT:
+    if(elapsed >= LED_OFF_MILLIS) {
+      // turn on
+      setExpanderOutput(EXP_PIN_LED1,0);
+      ledState=LEDSTATE_1_ON;
+    }
+    break;
+default:
+    ledState=LEDSTATE_1_ON;    
+  }
 }
 
 void loop()
@@ -281,7 +329,7 @@ void loop()
   unsigned long loopMillis = millis();
 
   float batteryVoltage = getBatteryVoltage();
-  if (batteryVoltage <= getBatteryMinimumVoltage()) {
+  if (batteryVoltage <= batteryCutoff) {
     DBGPRINTF(" ----LOW VOLTAGE %fV----\n",batteryVoltage);
     // TODO: disable motors and igniter, set battery light to blink
   } else {
@@ -302,6 +350,10 @@ void loop()
     bleSendString(" TIMED OUT ");
     timeoutPossible = 0; //can only timeout once
     initDevices();
+  }
+
+  if(expanderPresent) {
+    updateLeds(&loopMillis);
   }
 
   // Process any motor updates.
