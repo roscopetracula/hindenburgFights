@@ -14,16 +14,13 @@
 #define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the trigger has been released.  Will not exceed maximum. */
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */
 
-// Flags
+// Flags (#define to enable or #undef to disable)
 #undef  SERIAL_ENABLE            /* Enable serial communications. Watch out for loss of side effects in calls. */
 #undef  DEBUG_RECEIVE_LONG       /* Define to print extended receive messages; 0 to just print '@'. */
 #undef  TRANSMIT_ACK             /* Transmit an acknowledgement after each packet. */
 #undef  TRANSMIT_FAULT_STRING    /* Transmit a string version of the fault in addition to the coded version. */
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
-
-#define SERIAL_ENABLE
-//#define DEBUG_RECEIVE_LONG
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
