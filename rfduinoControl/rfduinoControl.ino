@@ -20,8 +20,9 @@
 #undef  TRANSMIT_FAULT_STRING    /* Transmit a string version of the fault in addition to the coded version. */
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
-#undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. Note that messages will only be sent on expander boards. */
+#undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
 #undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+#undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -61,13 +62,9 @@
 #define VDIVIDER_BOTTOM 7142.857 // Theoretical accounting for 25k internal and 10k external parallel resistors to ground.
 #define REAL_BATTERY_V_SCALE ((VDIVIDER_TOP+VDIVIDER_BOTTOM)/VDIVIDER_BOTTOM * 3.6 / 1023.0)
 */
-#define REAL_BATTERY_V_SCALE (2.0 * 3.6 / 1023.0)
-#define REAL_BATTERY_V_CUTOFF 3.0
-// if using VDD reference
-#define VDD_V_SCALE (3.6 / 1023.0)
-#define VDD_V_CUTOFF 1.8
-
-float batteryCutoff = VDD_V_CUTOFF;
+#define REAL_BATTERY_V_SCALE (2.0 * 3.6 / 1023.0) // if using the battery VCC
+#define VDD_V_SCALE (3.6 / 1023.0) // if using VDD reference
+#define BATTERY_CUTOFF 3.0
 
 // rfduino pin assignments.
 #define SCL_PIN     6 /* 5 for slimstack board */
@@ -123,8 +120,10 @@ byte writeExpanderRegister(uint8_t expRegister, uint8_t value) {
   Wire.write(expRegister);
   Wire.write(value);
   byte wireAck = Wire.endTransmission();
-  DBGPRINTF("i2c_exp write %X %X %d\n", (int)expRegister,(int)value,(int)wireAck);
-  return wireAck;
+#ifdef DEBUG_I2C_EXP
+  DBGPRINTF("i2c_exp write %x %x %d\n", (int)expRegister,(int)value,(int)wireAck);
+#endif
+return wireAck;
 }
 
 uint8_t readExpanderRegister(uint8_t expRegister) {
@@ -135,9 +134,13 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
   Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
-    DBGPRINTF("i2c_exp read %X from %d\n", (int) result, (int)expRegister);
+#ifdef DEBUG_I2C_EXP
+    DBGPRINTF("i2c_exp read %x from %d\n", (int) result, (int)expRegister);
+#endif
   } else {
+#ifdef DEBUG_I2C_EXP
     DBGPRINTF("i2c_exp failed to read from %d\n", (int)expRegister);
+#endif
   }
   return result;
 }
@@ -150,9 +153,7 @@ void configureExpander() {
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
     expanderPresent = 1;
-    
-    batteryCutoff = REAL_BATTERY_V_CUTOFF; // new board
-    
+        
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
@@ -297,7 +298,14 @@ float getBatteryVoltage() {
 #endif
 } // else
   // TODO: consider simply returning 3.3 instead of reading VDD.
-  return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
+#ifdef DEBUG_VOLTAGE_READING
+    int batteryReading = analogRead(1);
+    float batteryVoltage = VDD_V_SCALE * batteryReading;
+    bleNPrintf(32, "battery: %d = %d.%03d", batteryReading, int(batteryVoltage), int(1000.0*(batteryVoltage-int(batteryVoltage))));
+    return batteryVoltage;
+#else
+    return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
+#endif
 }
 
 void updateLeds(unsigned long *curTime) {
@@ -357,8 +365,8 @@ void loop()
   unsigned long loopMillis = millis();
 
   float batteryVoltage = getBatteryVoltage();
-  if (batteryVoltage <= batteryCutoff) {
-    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, batteryCutoff);
+  if (batteryVoltage <= BATTERY_CUTOFF && !voltageIsLow) {
+    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
     // TODO: disable motors and igniter, set battery light to blink
     voltageIsLow = true;
   } else {
