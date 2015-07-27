@@ -7,7 +7,6 @@
 #define UPDATE_INTERVAL      1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
 #define FAST_UPDATE_INTERVAL  100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
 
-
 // Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
 #define IGNITER_MINIMUM_TIME 1000 /* Minimum time (ms) after activation of trigger, before the igniter is turned off.  */
@@ -21,6 +20,8 @@
 #undef  TRANSMIT_FAULT_STRING    /* Transmit a string version of the fault in addition to the coded version. */
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
+#undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. Note that messages will only be sent on expander boards. */
+#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -287,8 +288,15 @@ boolean checkMotorFault()
 
 float getBatteryVoltage() {
   if(expanderPresent) {
-      return REAL_BATTERY_V_SCALE * analogRead(BATT_PIN);
-  } // else
+#ifdef DEBUG_VOLTAGE_READING
+    int batteryReading = analogRead(BATT_PIN);
+    float batteryVoltage = REAL_BATTERY_V_SCALE * batteryReading;
+    bleNPrintf(32, "battery: %d = %d.%03d", batteryReading, int(batteryVoltage), int(1000.0*(batteryVoltage-int(batteryVoltage))));
+    return batteryVoltage;
+#else
+    return REAL_BATTERY_V_SCALE * analogRead(BATT_PIN);
+#endif
+} // else
   // TODO: consider simply returning 3.3 instead of reading VDD.
   return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
 }
