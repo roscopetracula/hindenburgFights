@@ -10,3 +10,13 @@ enum returnMsgEnum {RETURN_MSG_STRING = 0x00,
                     RETURN_MSG_FAULT = 0x02,
 };
  
+ enum ledStates {LEDSTATE_1_ON,
+                 LEDSTATE_1_WAIT,
+                 LEDSTATE_2_ON,
+                 LEDSTATE_2_WAIT,
+                 LEDSTATE_LOW_VOLTAGE,
+ };
+ 
+ enum returnStatus {RETURN_STATUS_LOW_VOLTAGE = 0x01,
+ };
+ 

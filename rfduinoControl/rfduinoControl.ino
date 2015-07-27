@@ -40,6 +40,8 @@
 #define EXP_PIN_IGNITER 3
 #define EXP_PIN_LED1 4
 #define EXP_PIN_LED2 5
+#define EXP_PIN_LED_RED EXP_PIN_LED1
+#define EXP_PIN_LED_GREEN EXP_PIN_LED2
 #define EXP_PIN_FAULT 6
 #define IF_EXPANDER_ELSE(a,b) (expanderPresent ? (a) : (b))
 
@@ -89,6 +91,7 @@ unsigned long igniterTriggerReleased = 0;
 bool timeoutPossible = 0;
 bool isConnected = false;
 bool fastUpdate = false;
+bool voltageIsLow = false; 
 #if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
 unsigned long lastUpdateMillis = 0;
 #endif
@@ -96,13 +99,9 @@ bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
 
 // state machine to blink LEDs
-#define LEDSTATE_1_ON   0 
-#define LEDSTATE_1_WAIT 1
-#define LEDSTATE_2_ON   2
-#define LEDSTATE_2_WAIT 3
 #define LED_ON_MILLIS 30
 #define LED_OFF_MILLIS 500
-byte ledState = LEDSTATE_1_ON;
+ledStates ledState = LEDSTATE_1_ON;
 unsigned long ledStateLastChange = 0;
 
 #ifdef SERIAL_ENABLE
@@ -307,37 +306,49 @@ void updateLeds(unsigned long *curTime) {
   // TODO: alternate lighting for low battery state
   // TODO: alternate lighting when user pulls xbox trigger (help identify blimp)
   
-  switch(ledState) {
+  ledStates ledNextState = ledState;
+  
+  if (voltageIsLow && ledState != LEDSTATE_LOW_VOLTAGE) {
+    ledNextState = LEDSTATE_LOW_VOLTAGE;
+    setExpanderOutput(EXP_PIN_LED_RED,1);
+    setExpanderOutput(EXP_PIN_LED_GREEN,0);
+  } else switch(ledState) {
 case LEDSTATE_1_ON:
     if(elapsed >= LED_ON_MILLIS) {
       // turn off
       setExpanderOutput(EXP_PIN_LED1,1);
-      ledState=LEDSTATE_1_WAIT;
+      ledNextState=LEDSTATE_1_WAIT;
     }
     break;
 case LEDSTATE_2_ON:
     if(elapsed >= LED_ON_MILLIS) {
       // turn off
       setExpanderOutput(EXP_PIN_LED2,1);
-      ledState=LEDSTATE_2_WAIT;
+      ledNextState=LEDSTATE_2_WAIT;
     }
     break;    
 case LEDSTATE_1_WAIT:
     if(elapsed >= LED_OFF_MILLIS) {
       // turn on
       setExpanderOutput(EXP_PIN_LED2,0);
-      ledState=LEDSTATE_2_ON;
+      ledNextState=LEDSTATE_2_ON;
     }
     break;    
 case LEDSTATE_2_WAIT:
     if(elapsed >= LED_OFF_MILLIS) {
       // turn on
       setExpanderOutput(EXP_PIN_LED1,0);
-      ledState=LEDSTATE_1_ON;
+      ledNextState=LEDSTATE_1_ON;
     }
     break;
 default:
-    ledState=LEDSTATE_1_ON;    
+    ledNextState=LEDSTATE_1_ON;    
+  }  
+ 
+  // If we've changed state, mark the time.
+  if (ledState != ledNextState) {
+    ledStateLastChange = *curTime;
+    ledState = ledNextState;
   }
 }
 
@@ -347,10 +358,14 @@ void loop()
 
   float batteryVoltage = getBatteryVoltage();
   if (batteryVoltage <= batteryCutoff) {
-    DBGPRINTF(" ----LOW VOLTAGE %fV----\n",batteryVoltage);
+    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, batteryCutoff);
     // TODO: disable motors and igniter, set battery light to blink
+    voltageIsLow = true;
   } else {
     // enable motors and igniter and normal lights
+    // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
+    // to avoid the low voltage state bouncing when the voltage is on the cusp
+    // and motor activity temporarily brings it low. 
   }
 
   // Check for any faults from the motor controllers and clear the ones we find.
@@ -386,9 +401,9 @@ void loop()
   if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL ||
       (fastUpdate && loopMillis - lastUpdateMillis >= FAST_UPDATE_INTERVAL)) {
     float curTemp = RFduino_temperature(FAHRENHEIT);
+    byte statusFlags = (voltageIsLow ? RETURN_STATUS_LOW_VOLTAGE : 0);
     unsigned short batteryVoltageX100 = (100.0 * batteryVoltage); // convert value to hundredths of a volt
-
-    int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 5 + sizeof(batteryVoltageX100);
+    int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 6 + sizeof(batteryVoltageX100);
     char buf[bufLen];
     buf[0] = RETURN_MSG_UPDATE;
     memcpy(buf + 1, &curRSSI, sizeof(curRSSI));
@@ -400,7 +415,8 @@ void loop()
 
     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 3] = igniterStateByte;
     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 4] = blimpTriggerState;
-    memcpy(&buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 5], &batteryVoltageX100, sizeof(batteryVoltageX100));
+    buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 5] = statusFlags;
+    memcpy(&buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 6], &batteryVoltageX100, sizeof(batteryVoltageX100));
 
     bleSendData(buf, bufLen);
     lastUpdateMillis = millis();

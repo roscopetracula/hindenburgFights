@@ -33,6 +33,8 @@ BLUE=(0,0,255)
 CYAN=(0,255,255)
 PURPLE=(255,0,255)
 YELLOW=(255,255,0)        
+WHITE=(255,255,255)
+BLACK=(0,0,0)
 
 BLIMP_OUTER_BORDER=3
 BLIMP_INNER_BORDER=1
@@ -77,13 +79,13 @@ class bleBotGui():
             self.frame.td(self.axisFaultLabel[i], style=self.axisBorders[i], colspan=2)
 
         # Build the status section.
-        self.rssiLabel = gui.Label("RSSI: ?")
-        self.tempLabel = gui.Label("Temp: ?")
+        self.rssiTempLabel = gui.Label("? / ?\xb0F")
+        self.voltageLabel = gui.Label("?v", background=GREEN)
         self.trgLabel = gui.Label("trg", background=GREEN);
         self.ignLabel = gui.Label("ign", background=GREEN);
         self.frame.tr()
-        self.frame.td(self.rssiLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=2)
-        self.frame.td(self.tempLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.rssiTempLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.voltageLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
         self.frame.td(self.trgLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
         self.frame.td(self.ignLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
         # Build the connection info and enable/disable button.
@@ -295,10 +297,19 @@ class bleBot():
                     self.gui.trgLabel.set_text("trg")
                     self.gui.trgLabel.style.background = GREEN
 
-            self.batteryVoltage = struct.unpack("<H", "".join(data[13:15]))[0] * 0.01;
-            self.gui.rssiLabel.set_text("RSSI: {:d}".format(self.curRSSI))
-            self.gui.tempLabel.set_text("{:.2f}V / {:.1f}\xb0F".format(self.batteryVoltage,self.curTemp))
+            self.returnStatus = ord(data[13])
+            self.batteryVoltage = struct.unpack("<H", "".join(data[14:16]))[0] * 0.01;
+            self.gui.rssiTempLabel.set_text("{:d} / {:.1f}\xb0F".format(self.curRSSI,self.curTemp))
+            self.gui.voltageLabel.set_text("{:.2f}v ".format(self.batteryVoltage))
 
+            # Match the voltage reading color to the report of low voltage.
+            if (self.returnStatus & 0x01):
+                if (self.gui.voltageLabel.style.background != RED):
+                    self.gui.voltageLabel.style.background = RED;
+            else:    
+                if (self.gui.voltageLabel.style.background != GREEN):
+                    self.gui.voltageLabel.style.background = GREEN;
+                
             # Give us debug info.
             if DEBUG_UPDATE:
                 curTime = time.time()
