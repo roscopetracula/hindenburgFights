@@ -15,7 +15,7 @@
 #define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */
 
 // Flags (#define to enable or #undef to disable)
-#undef  SERIAL_ENABLE            /* Enable serial communications. Watch out for loss of side effects in calls. */
+#define SERIAL_ENABLE            /* Enable serial communications. Watch out for loss of side effects in calls. */
 #undef  DEBUG_RECEIVE_LONG       /* Define to print extended receive messages; 0 to just print '@'. */
 #undef  TRANSMIT_ACK             /* Transmit an acknowledgement after each packet. */
 #undef  TRANSMIT_FAULT_STRING    /* Transmit a string version of the fault in addition to the coded version. */
@@ -32,7 +32,7 @@
 #define V_SET 0x3f // 3f = 5.06, or ~20v max output.
 
 // i2c expander
-#define EXP_I2C 0x20
+#define EXP_I2C_ADR 0x20
 #define EXP_REGISTER_INPUT 0x00
 #define EXP_REGISTER_OUTPUT 0x01
 #define EXP_REGISTER_CONFIG 0x03
@@ -40,13 +40,25 @@
 #define EXP_PIN_LED1 4
 #define EXP_PIN_LED2 5
 #define EXP_PIN_FAULT 6
+#define IF_EXPANDER_ELSE(a,b) (expanderPresent ? (a) : (b))
 
-// expander interrupt signal to rfduino, or fault input pin for non-expander board
-#define EXP_INT_PIN_OR_FAULT_PIN 4
-// rfduino pin assignment for board with expander (battery pin) or without (igniter pin)
-#define BATT_PIN_OR_IGNITER_PIN 2
+// rfduino pin assignment for boards without i/o expander
+#define PRE_EXP_FAULT_PIN 4
+#define PRE_EXP_TRIGGER_PIN 3
+#define PRE_EXP_IGNITER_PIN 2
 
-#define REAL_BATTERY_V_SCALE (2 * 3.6 / 1023.0)
+// rfduino pin assignments for boards with i/o expander
+#define BATT_PIN 4
+#define INT_PIN 3
+
+/* 
+// Macros for manually calculating divider split.
+#define VDIVIDER_TOP 10000.0
+#define VDIVIDER_BOTTOM 10000.0 // Theoretical 50/50 divider with 10k resistors.
+#define VDIVIDER_BOTTOM 7142.857 // Theoretical accounting for 25k internal and 10k external parallel resistors to ground.
+#define REAL_BATTERY_V_SCALE ((VDIVIDER_TOP+VDIVIDER_BOTTOM)/VDIVIDER_BOTTOM * 3.6 / 1023.0)
+*/
+#define REAL_BATTERY_V_SCALE (2.0 * 3.6 / 1023.0)
 #define REAL_BATTERY_V_CUTOFF 3.0
 // if using VDD reference
 #define VDD_V_SCALE (3.6 / 1023.0)
@@ -57,7 +69,7 @@ float batteryCutoff = VDD_V_CUTOFF;
 // rfduino pin assignments.
 #define SCL_PIN     6 /* 5 for slimstack board */
 #define SDA_PIN     5 /* 6 for slimstack board */
-#define TRIGGER_PIN 3
+#define TRIGGER_PIN IF_EXPANDER_ELSE(2,PRE_EXP_TRIGGER_PIN)
 
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -107,7 +119,7 @@ unsigned long ledStateLastChange = 0;
 
 byte writeExpanderRegister(uint8_t expRegister, uint8_t value) {
   // note probably this doesn't work, not tested
-  Wire.beginTransmission(EXP_I2C);
+  Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
   Wire.write(value);
   byte wireAck = Wire.endTransmission();
@@ -118,9 +130,9 @@ byte writeExpanderRegister(uint8_t expRegister, uint8_t value) {
 uint8_t readExpanderRegister(uint8_t expRegister) {
   // note probably this doesn't work, not tested
   int result = 0;
-  Wire.beginTransmission(EXP_I2C);
+  Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
-  Wire.requestFrom(EXP_I2C, 1, true);
+  Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
     DBGPRINTF("i2c_exp read %X from %d\n", (int) result, (int)expRegister);
@@ -145,7 +157,7 @@ void configureExpander() {
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
     // interrupt for motor fault
-    pinMode(EXP_INT_PIN_OR_FAULT_PIN, INPUT); // interrupt pin
+    pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
 
     DBGPRINTLN("i2c_exp configured");
@@ -186,12 +198,12 @@ void setup_io() {
 
   if(expanderPresent) { 
     // new board
-    pinMode(BATT_PIN_OR_IGNITER_PIN, INPUT); // battery pin
+    pinMode(BATT_PIN, INPUT); // battery pin
     analogSelection(AIN_1_3_PS);  // selected analog pin input, 1/3 prescaling as the analog source
   } else {
     // old board
-    pinMode(EXP_INT_PIN_OR_FAULT_PIN, INPUT); // fault pin
-    pinMode(BATT_PIN_OR_IGNITER_PIN, OUTPUT); // igniter pin
+    pinMode(PRE_EXP_FAULT_PIN, INPUT); // fault pin
+    pinMode(PRE_EXP_IGNITER_PIN, OUTPUT); // igniter pin
 
     // "battery" level from VDD
     analogSelection(VDD_1_3_PS);  // VDD input, 1/3 prescaling as the analog source
@@ -254,7 +266,7 @@ void bleNPrintf(int maxLen, const char *format, ...)
   char buf[maxLen];
   va_list myargs;
   va_start(myargs, format);
-  snprintf(buf, maxLen, format, myargs);
+  vsnprintf(buf, maxLen, format, myargs);
   va_end(myargs);  
   bleSendString(buf);
 }
@@ -269,16 +281,16 @@ boolean checkMotorFault()
   if(expanderPresent) {
     return getExpanderInput(EXP_PIN_FAULT);
   } else {
-    return (digitalRead(EXP_INT_PIN_OR_FAULT_PIN) == LOW);
+    return (digitalRead(PRE_EXP_FAULT_PIN) == LOW);
   }
 }
 
 float getBatteryVoltage() {
   if(expanderPresent) {
-    return REAL_BATTERY_V_SCALE * analogRead(BATT_PIN_OR_IGNITER_PIN);
+      return REAL_BATTERY_V_SCALE * analogRead(BATT_PIN);
   } // else
+  // TODO: consider simply returning 3.3 instead of reading VDD.
   return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
-
 }
 
 void updateLeds(unsigned long *curTime) {
@@ -294,7 +306,7 @@ case LEDSTATE_1_ON:
       setExpanderOutput(EXP_PIN_LED1,1);
       ledState=LEDSTATE_1_WAIT;
     }
-    break;    
+    break;
 case LEDSTATE_2_ON:
     if(elapsed >= LED_ON_MILLIS) {
       // turn off
@@ -549,10 +561,10 @@ void setIgniter(byte igniterCode) {
     }
   } else {
     if (igniterCode == 0x01) {
-      digitalWrite(BATT_PIN_OR_IGNITER_PIN , HIGH);
+      digitalWrite(PRE_EXP_IGNITER_PIN, HIGH);
       DBGPRINTLN("IGNITER ON");
     } else {
-      digitalWrite(BATT_PIN_OR_IGNITER_PIN , LOW);
+      digitalWrite(PRE_EXP_IGNITER_PIN, LOW);
       DBGPRINTLN("IGNITER OFF");
     }
   }
