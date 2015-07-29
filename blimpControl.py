@@ -142,7 +142,13 @@ controllersPerLine = 2 if numControllers < 5 else 3
 guiApp = gui.Desktop()
 guiAppTable = gui.Table()
 
+try:
+    appIcon = pygame.image.load("lib/blimpControlIcon.png")
+except pygame.error:
+    print "failed to load icon: {:s}".format("lib/blimpControlIcon.png")
+    appIcon = None
 guiAppTable.tr()
+#guiAppTable.td(gui.Image(pygame.transform.scale(appIcon, (48, 48))), colspan=1)
 guiAppTable.td(gui.Label(GAME_NAME), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10})
 guiAppButtonsTable = gui.Table()
 guiDisableAllButton=gui.Button("Disable All")
@@ -170,8 +176,8 @@ for c in range(0, numControllers):
     elif (c != 0):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.frame)
-appIcon = pygame.image.load("lib/blimpControl_icon.png")
-pygame.display.set_icon(appIcon)
+if (appIcon):
+    pygame.display.set_icon(appIcon)
 pygame.display.set_caption(GAME_NAME)
 guiApp.init(guiAppTable)
 
