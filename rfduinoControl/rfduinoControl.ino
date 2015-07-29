@@ -21,7 +21,7 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+#define IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 
 // Motor and other i2c addresses.
@@ -85,6 +85,7 @@ int curRSSI = 0;
 unsigned long lastPingMillis = 0;
 unsigned long igniterLastOn = 0;
 unsigned long igniterTriggerReleased = 0;
+bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
 bool fastUpdate = false;
@@ -185,6 +186,18 @@ bool getExpanderInput(byte pin) {
   return (inputs & (1<<pin)) != 0;
 }
 
+int triggerPinCallback(uint32_t ulPin) {
+  // We are assuming that this is the trigger pin; be sure to change this
+  // if we end up with multiple interrupts.
+
+  // For now, we are assuming that if this was called, the trigger is or just
+  // was on.  Testing shows that it's possible for the pin to be low before
+  // it gets read.  If for some reason the callback gets called while
+  // there genuinely is no trigger, we'll have to reevaluate this.
+  triggerInterruptCalled = true;
+  return 0;
+}
+
 void setup_io() {
   analogReference(VBG); // Reference 1.2V band gap (for battery voltage detection)
 
@@ -195,7 +208,8 @@ void setup_io() {
   configureExpander();
   
   pinMode(TRIGGER_PIN, INPUT);
-  // TODO: interrupt on trigger pin
+  RFduino_pinWakeCallback(TRIGGER_PIN, 0, triggerPinCallback) ;
+  RFduino_pinWake(TRIGGER_PIN, HIGH);
 
   if(expanderPresent) { 
     // new board
@@ -287,7 +301,10 @@ boolean checkMotorFault()
 }
 
 float getBatteryVoltage() {
-  if(expanderPresent) {
+#ifdef IGNORE_BATTERY
+  return BATTERY_CUTOFF;
+#else // IGNORE_BATTERY
+if(expanderPresent) {
 #ifdef DEBUG_VOLTAGE_READING
     int batteryReading = analogRead(BATT_PIN);
     float batteryVoltage = REAL_BATTERY_V_SCALE * batteryReading;
@@ -306,6 +323,7 @@ float getBatteryVoltage() {
 #else
     return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
 #endif
+#endif // IGNORE_BATTERY
 }
 
 void updateLeds(unsigned long *curTime) {
@@ -365,7 +383,7 @@ void loop()
   unsigned long loopMillis = millis();
 
   float batteryVoltage = getBatteryVoltage();
-  if (batteryVoltage <= BATTERY_CUTOFF && !voltageIsLow) {
+  if (batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
     DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
     // TODO: disable motors and igniter, set battery light to blink
     voltageIsLow = true;
@@ -611,8 +629,14 @@ void updateIgniter(byte igniterCode) {
 
 void updateIgniterState(void) {
   // Treat the controller and trigger as a single combined trigger.
-  bool igniterTriggered = curControllerTriggerState || blimpTriggerState;
+  bool igniterTriggered = curControllerTriggerState || blimpTriggerState || triggerInterruptCalled;
   unsigned int curMillis = millis();
+
+  // Reset the interrupt, regardless of whether it triggered or not.
+  // In theory a new trigger can happen before this clears it, but that 
+  // lost trigger is unlikely to matter when in the middle of handling an
+  // active trigger.
+  triggerInterruptCalled = false;
 
   if (!isConnected && igniterState != IGNITER_STATE_LOCKED) {
     DBGPRINTLN("we're disconnected, locking the igniter");
