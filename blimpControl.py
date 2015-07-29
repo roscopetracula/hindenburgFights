@@ -166,8 +166,9 @@ for c in range(0, numControllers):
     elif (c != 0):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.frame)
-guiApp.init(guiAppTable)
+pygame.display.set_icon(pygame.image.load("lib/blimpControl_icon.png"))
 pygame.display.set_caption(GAME_NAME)
+guiApp.init(guiAppTable)
 
 lastDisplayUpdateTime = 0
 
