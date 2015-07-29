@@ -132,10 +132,9 @@ lastScan = {}
 if has_xbox_controller():
     pygame.joystick.init()
 controllers = load_controllers()
+# Add any needed dummy controllers.
 while (len(controllers) < args.minimum_blimps):
-    controllers.append(create_controller(KeyboardController.DummyKeyboardController))
-    print "adding blimp {:d}/{:d}".format(len(controllers), args.minimum_blimps)
-       
+    controllers.append(create_controller(KeyboardController.DummyKeyboardController))       
 numControllers = len(controllers)
 controllersPerLine = 2 if numControllers < 5 else 3
 
@@ -144,16 +143,16 @@ guiApp = gui.Desktop()
 guiAppTable = gui.Table()
 
 guiAppTable.tr()
-guiAppTable.td(gui.Label(GAME_NAME), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10});
+guiAppTable.td(gui.Label(GAME_NAME), colspan=(2 if controllersPerLine <= 2 else 4), style={'border':10})
 guiAppButtonsTable = gui.Table()
 guiDisableAllButton=gui.Button("Disable All")
-guiDisableAllButton.connect(gui.CLICK, doDisableAll, None);
+guiDisableAllButton.connect(gui.CLICK, doDisableAll, None)
 guiEnableAllButton=gui.Button("Enable All")
-guiEnableAllButton.connect(gui.CLICK, doEnableAll, None);
+guiEnableAllButton.connect(gui.CLICK, doEnableAll, None)
 guiResetAllButton=gui.Button("Reset All")
-guiResetAllButton.connect(gui.CLICK, doResetAll, None);
+guiResetAllButton.connect(gui.CLICK, doResetAll, None)
 guiQuitButton = gui.Button("Quit")
-guiQuitButton.connect(gui.CLICK, doQuit, None);
+guiQuitButton.connect(gui.CLICK, doQuit, None)
 guiAppButtonsTable.td(guiDisableAllButton)
 guiAppButtonsTable.td(guiEnableAllButton)
 guiAppButtonsTable.td(guiResetAllButton)
@@ -171,7 +170,8 @@ for c in range(0, numControllers):
     elif (c != 0):
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.frame)
-pygame.display.set_icon(pygame.image.load("lib/blimpControl_icon.png"))
+appIcon = pygame.image.load("lib/blimpControl_icon.png")
+pygame.display.set_icon(appIcon)
 pygame.display.set_caption(GAME_NAME)
 guiApp.init(guiAppTable)
 
@@ -214,6 +214,9 @@ while True:
 
         # Only do timing out of we have a functional hcitool scanner.
         if len(hcitoolScanners) > 0:
+            # Pretend we've seen the dummy.
+            lastScan["dummy"] = loopTime
+
             # If we're not connected, disabled, or missing, and don't have
             # a recent update, we should be missing.
             if not controller.bleBlimp.connectionState in (controller.bleBlimp.CONNECTED, controller.bleBlimp.DISABLED, controller.bleBlimp.MISSING):
@@ -240,8 +243,10 @@ while True:
                 # period. (Note that the blimp is not advertising when
                 # connected.)
                 lastScan[controller.bleBlimp.ble_adr.lower()] = loopTime
-                # Also, poll the status, which appears to cause pending messages to be received.
-                controller.bleBlimp.btlePeripheral.status()
+                # Also, for real blimps, poll the status, which
+                # appears to cause pending messages to be received.
+                if (controller.bleBlimp.ble_adr.lower() != "dummy"):
+                    controller.bleBlimp.btlePeripheral.status()
                 
         if controller.bleBlimp.connectionState == controller.bleBlimp.CONNECTING:
             # We are in the middle of an asynchronous connect, check the status.

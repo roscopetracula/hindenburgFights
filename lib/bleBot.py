@@ -333,7 +333,8 @@ class bleBot():
     def connect( self ):
 
         if (self.ble_adr == "dummy"):
-            print "dummy connection established"
+            if DEBUG_CONNECT:
+                print "dummy connection established"
             self.updateConnectionState(self.CONNECTED)
             return self
 
