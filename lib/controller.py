@@ -1,4 +1,4 @@
-from lib.constants import XBOX, KEYBOARD
+from lib.constants import *
 from lib.bleBot import bleBot
 import pygame
 import imp
@@ -75,6 +75,26 @@ class Controller(object):
         self.bleBlimp.reconnect()
 
 class KeyboardController(Controller):
+
+    DummyKeyboardController = {
+        'type': KEYBOARD,
+        'uuid': "dummy",
+        'orientation': {
+            "f_b": (AXIS_2, INVERTED),
+            "r_l": (AXIS_1, NORMAL),
+            "u_d": (AXIS_0, INVERTED),
+        },
+        'keys': {
+            "f": pygame.K_UP,
+            "b": pygame.K_DOWN,
+            "r": pygame.K_RIGHT,
+            "l": pygame.K_LEFT,
+            "u": pygame.K_o,
+            "d": pygame.K_l,
+	    "i": pygame.K_SPACE,
+        }
+    }
+
     def __init__(self,bleBlimp,axisToMotorMap,keyMap):
         Controller.__init__(self,bleBlimp)
         # super(self, Controller).__init__(bleBlimp)

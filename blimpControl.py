@@ -22,6 +22,7 @@ from pgu import gui
 
 from lib.controller import (
     load_controllers,
+    create_controller, 
     has_xbox_controller,
     KeyboardController,
     XboxController,
@@ -53,6 +54,7 @@ parser.add_argument('--scan-devices', action='store', help='comma-separated list
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
+parser.add_argument('--minimum-blimps', action='store', help='make sure we have at least N blimps, creating dummies where needed', default='0', metavar="N", type=int)
 args = parser.parse_args()
 Controller.CONFIG_FILE = args.config
 
@@ -61,7 +63,6 @@ if args.default_enabled:
     bleBot.DEFAULT_ENABLED = True
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
-
 
 # Discover bluetooth devices for scanning.
 bleDeviceNames = []
@@ -131,6 +132,10 @@ lastScan = {}
 if has_xbox_controller():
     pygame.joystick.init()
 controllers = load_controllers()
+while (len(controllers) < args.minimum_blimps):
+    controllers.append(create_controller(KeyboardController.DummyKeyboardController))
+    print "adding blimp {:d}/{:d}".format(len(controllers), args.minimum_blimps)
+       
 numControllers = len(controllers)
 controllersPerLine = 2 if numControllers < 5 else 3
 
