@@ -21,7 +21,7 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#define IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 
 // Motor and other i2c addresses.
