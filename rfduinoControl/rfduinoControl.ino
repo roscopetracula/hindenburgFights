@@ -21,8 +21,7 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#define IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
-#undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
+#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
 
 // Motor and other i2c addresses.
@@ -40,10 +39,8 @@
 #define EXP_REGISTER_OUTPUT 0x01
 #define EXP_REGISTER_CONFIG 0x03
 #define EXP_PIN_IGNITER 3
-#define EXP_PIN_LED1 4
-#define EXP_PIN_LED2 5
-#define EXP_PIN_LED_RED EXP_PIN_LED1
-#define EXP_PIN_LED_GREEN EXP_PIN_LED2
+#define EXP_PIN_LED_RED 5
+#define EXP_PIN_LED_GREEN 4
 #define EXP_PIN_FAULT 6
 #define IF_EXPANDER_ELSE(a,b) (expanderPresent ? (a) : (b))
 
@@ -98,8 +95,8 @@ bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
 
 // state machine to blink LEDs
-#define LED_ON_MILLIS 30
-#define LED_OFF_MILLIS 500
+#define LED_ON_MILLIS 15
+#define LED_OFF_MILLIS 1000
 ledStates ledState = LEDSTATE_1_ON;
 unsigned long ledStateLastChange = 0;
 
@@ -117,7 +114,6 @@ unsigned long ledStateLastChange = 0;
 // reference http://www.ti.com/lit/ds/symlink/tca6408a.pdf
 
 byte writeExpanderRegister(uint8_t expRegister, uint8_t value) {
-  // note probably this doesn't work, not tested
   Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
   Wire.write(value);
@@ -129,17 +125,17 @@ return wireAck;
 }
 
 uint8_t readExpanderRegister(uint8_t expRegister) {
-  // note probably this doesn't work, not tested
   int result = 0;
   Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
+  byte wireAck = Wire.endTransmission();
   Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
 #ifdef DEBUG_I2C_EXP
     DBGPRINTF("i2c_exp read %x from %d\n", (int) result, (int)expRegister);
 #endif
-  } else {
+  } else {  
 #ifdef DEBUG_I2C_EXP
     DBGPRINTF("i2c_exp failed to read from %d\n", (int)expRegister);
 #endif
@@ -148,12 +144,19 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 }
 
 void configureExpander() {
+  int gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
+  DBGPRINTF("i2c_exp default configure register: %x \n",(int)gotConfig);
+  
   uint8_t configuration=0;
-  configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
+  //configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
+  configuration = 0xCF;
   
   // igniter and led1 and led2 are output
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
+    gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
+    DBGPRINTF("i2c_exp post config register: %x \n",(int)gotConfig);
+    
     expanderPresent = 1;
         
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
@@ -162,8 +165,14 @@ void configureExpander() {
     // interrupt for motor fault
     pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
-
-    DBGPRINTLN("i2c_exp configured");
+  
+    gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
+    if(gotConfig == configuration) {
+      DBGPRINTLN("i2c_exp configured");
+    } else {
+      DBGPRINTF("i2c_exp failed to configure: %x != %x\n",(int)configuration,(int)gotConfig);
+    }
+  
   } else {
     DBGPRINTLN("i2c_exp NOT found (old board)");
   }
@@ -204,8 +213,17 @@ int triggerPinCallback(uint32_t ulPin) {
 }
 
 void setup_io() {
-  analogReference(VBG); // Reference 1.2V band gap (for battery voltage detection)
-
+  analogReference(VBG); // Reference supply
+  
+  /*
+  analogSelection(AIN_1_3_PS);  // selected analog pin input, 1/3 prescaling as the analog source
+  int readBatt = analogRead(BATT_PIN); 
+  analogSelection(VDD_1_3_PS);  // VDD input, 1/3 prescaling as the analog source
+  int readVdd = analogRead(BATT_PIN); 
+  delay(20);
+  DBGPRINTF("batt = %d, vdd = %d\n",readBatt,readVdd);
+  */
+  
   // all boards: start i2c
   Wire.beginOnPins(SCL_PIN, SDA_PIN);
   delay(20);
@@ -244,7 +262,6 @@ void setup()
   // start bluetooth
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
-  delay(20);
   delay(20);
 
   // Do the motor dance.
@@ -306,10 +323,7 @@ boolean checkMotorFault()
 }
 
 float getBatteryVoltage() {
-#ifdef IGNORE_BATTERY
-  return BATTERY_CUTOFF;
-#else // IGNORE_BATTERY
-if(expanderPresent) {
+  if(expanderPresent) {
 #ifdef DEBUG_VOLTAGE_READING
     int batteryReading = analogRead(BATT_PIN);
     float batteryVoltage = REAL_BATTERY_V_SCALE * batteryReading;
@@ -318,60 +332,72 @@ if(expanderPresent) {
 #else
     return REAL_BATTERY_V_SCALE * analogRead(BATT_PIN);
 #endif
-} // else
-  // TODO: consider simply returning 3.3 instead of reading VDD.
+  } // else
 #ifdef DEBUG_VOLTAGE_READING
-    int batteryReading = analogRead(1);
-    float batteryVoltage = VDD_V_SCALE * batteryReading;
-    bleNPrintf(32, "battery: %d = %d.%03d", batteryReading, int(batteryVoltage), int(1000.0*(batteryVoltage-int(batteryVoltage))));
-    return batteryVoltage;
+  int batteryReading = analogRead(1);
+  float batteryVoltage = VDD_V_SCALE * batteryReading;
+  bleNPrintf(32, "battery: %d = %d.%03d", batteryReading, int(batteryVoltage), int(1000.0*(batteryVoltage-int(batteryVoltage))));
+  return batteryVoltage;
 #else
-    return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
+  return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
 #endif
-#endif // IGNORE_BATTERY
 }
 
 void updateLeds(unsigned long *curTime) {
   unsigned long elapsed = (*curTime) -ledStateLastChange;
 
-  // TODO: alternate lighting for low battery state
   // TODO: alternate lighting when user pulls xbox trigger (help identify blimp)
   
   ledStates ledNextState = ledState;
   
-  if (voltageIsLow && ledState != LEDSTATE_LOW_VOLTAGE) {
-    ledNextState = LEDSTATE_LOW_VOLTAGE;
-    setExpanderOutput(EXP_PIN_LED_RED,1);
-    setExpanderOutput(EXP_PIN_LED_GREEN,0);
-  } else switch(ledState) {
+  switch(ledState) {
 case LEDSTATE_1_ON:
     if(elapsed >= LED_ON_MILLIS) {
       // turn off
-      setExpanderOutput(EXP_PIN_LED1,1);
+      setExpanderOutput(EXP_PIN_LED_GREEN,1);
       ledNextState=LEDSTATE_1_WAIT;
     }
     break;
 case LEDSTATE_2_ON:
     if(elapsed >= LED_ON_MILLIS) {
       // turn off
-      setExpanderOutput(EXP_PIN_LED2,1);
+      setExpanderOutput(EXP_PIN_LED_RED,1);
       ledNextState=LEDSTATE_2_WAIT;
     }
     break;    
 case LEDSTATE_1_WAIT:
-    if(elapsed >= LED_OFF_MILLIS) {
+    if(voltageIsLow) {
+      ledNextState = LEDSTATE_LOW_VOLTAGE_BLINK_OFF;
+    } else if(elapsed >= LED_OFF_MILLIS) {
       // turn on
-      setExpanderOutput(EXP_PIN_LED2,0);
+      setExpanderOutput(EXP_PIN_LED_RED,0);
       ledNextState=LEDSTATE_2_ON;
     }
     break;    
 case LEDSTATE_2_WAIT:
     if(elapsed >= LED_OFF_MILLIS) {
       // turn on
-      setExpanderOutput(EXP_PIN_LED1,0);
+      setExpanderOutput(EXP_PIN_LED_GREEN,0);
       ledNextState=LEDSTATE_1_ON;
     }
     break;
+case LEDSTATE_LOW_VOLTAGE_BLINK_ON:
+    if(!voltageIsLow) {
+      // probably this doesn't happen since LV never gets reset
+      ledNextState=LEDSTATE_1_ON;
+    } else if(elapsed >= LED_ON_MILLIS) {
+      // turn off
+      setExpanderOutput(EXP_PIN_LED_RED,1);
+      ledNextState=LEDSTATE_LOW_VOLTAGE_BLINK_OFF;
+    }
+case LEDSTATE_LOW_VOLTAGE_BLINK_OFF:
+    if(elapsed >= LED_OFF_MILLIS) {
+      // turn on
+      setExpanderOutput(EXP_PIN_LED_RED,0);
+      ledNextState=LEDSTATE_LOW_VOLTAGE_BLINK_ON;
+    }
+    break;
+    
 default:
     ledNextState=LEDSTATE_1_ON;    
   }  
@@ -388,12 +414,12 @@ void loop()
   unsigned long loopMillis = millis();
 
   float batteryVoltage = getBatteryVoltage();
-  if (batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
+  if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
     DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
-    // TODO: disable motors and igniter, set battery light to blink
+    // TODO: disable motors and igniter
     voltageIsLow = true;
   } else {
-    // enable motors and igniter and normal lights
+    // re-enable motors and igniter and normal lights?
     // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
     // to avoid the low voltage state bouncing when the voltage is on the cusp
     // and motor activity temporarily brings it low. 
@@ -455,12 +481,6 @@ void loop()
   }
 #endif
 }
-
-
-
-
-
-
 
 void RFduinoBLE_onConnect() {
   isConnected = true;
