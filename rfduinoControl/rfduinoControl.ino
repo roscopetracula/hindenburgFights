@@ -198,6 +198,9 @@ int triggerPinCallback(uint32_t ulPin) {
   // was on.  Testing shows that it's possible for the pin to be low before
   // it gets read.  If for some reason the callback gets called while
   // there genuinely is no trigger, we'll have to reevaluate this.
+#ifdef DEBUG_TRIGGER_INTERRUPT
+  DBGPRINT("!");
+#endif
   triggerInterruptCalled = true;
   return 0;
 }
