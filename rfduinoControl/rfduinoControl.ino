@@ -21,7 +21,6 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
 
@@ -89,6 +88,9 @@ bool timeoutPossible = 0;
 bool isConnected = false;
 bool fastUpdate = false;
 bool voltageIsLow = false; 
+bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
+
 #if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
 unsigned long lastUpdateMillis = 0;
 #endif
@@ -318,9 +320,9 @@ boolean checkMotorFault()
 }
 
 float getBatteryVoltage() {
-#ifdef IGNORE_BATTERY
-  return BATTERY_CUTOFF;
-#else // IGNORE_BATTERY
+  if (ignoreBatteryVoltage)
+    return BATTERY_CUTOFF;
+
   if(expanderPresent) {
 #ifdef DEBUG_VOLTAGE_READING
     int batteryReading = analogRead(BATT_PIN);
@@ -339,10 +341,20 @@ float getBatteryVoltage() {
 #else
   return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
 #endif
-#endif // IGNORE_BATTERY
 }
 
 void checkBatteryVoltage() {
+  // If the override flag has been set, go back to running.
+  if (overrideBatteryVoltage) {
+    // Disable low voltage detection, reset voltage state, and 
+    // make sure we don't have a stored interrupt.
+    overrideBatteryVoltage = false;
+    ignoreBatteryVoltage = true;
+    voltageIsLow = false;
+    triggerInterruptCalled = false;
+    fastUpdate = true;
+  }
+  
   float batteryVoltage = getBatteryVoltage();
   if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
     DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
@@ -584,6 +596,12 @@ void RFduinoBLE_onReceive(char *data, int len) {
       nextControllerTriggerState = data[cmdStart + 1];
     } else if (data[cmdStart + 0] == 0x04) {
       RFduino_systemReset();
+    } else if (data[cmdStart + 0] == 0x05) {
+      if (data[cmdStart + 1] == 0x01) {
+        overrideBatteryVoltage = true;
+       } else {
+        bleSendString("voltage override canceled but not implemented");
+      }
     } else {
       // We don't know this command.
       char buf[32];
