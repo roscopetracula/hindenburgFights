@@ -130,7 +130,6 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
   Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
   byte wireAck = Wire.endTransmission();
-
   Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
@@ -148,6 +147,7 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 void configureExpander() {
   uint8_t configuration=0;
   configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
+  
   // igniter and led1 and led2 are output
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
@@ -156,7 +156,7 @@ void configureExpander() {
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
-    // interrupt for motor fault/interrupt
+    // interrupt for motor fault
     pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
   
@@ -255,6 +255,7 @@ void setup()
   // start bluetooth
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
+  delay(20);
 
   checkBatteryVoltage();
 
@@ -345,8 +346,8 @@ void checkBatteryVoltage() {
   float batteryVoltage = getBatteryVoltage();
   if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
     DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
-    // TODO: disable motors and igniter
     voltageIsLow = true;
+    initDevices();
   } else {
     // re-enable motors and igniter and normal lights?
     // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
@@ -429,7 +430,7 @@ void loop()
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
-    DBGPRINTLN("--- FAULT ---");
+    DBGPRINTLN(" ----FAULT----  ");
     getFault(MOTOR1, true);
     getFault(MOTOR2, true);
     getFault(MOTOR3, true);
@@ -447,13 +448,15 @@ void loop()
     updateLeds(&loopMillis);
   }
 
-  // Process any motor updates.
-  processAllMotorUpdates();
-
-  // Check if the triggers have changed state, then check if the Igniter needs to be turned on or off.
-  updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
-  updateControllerTrigger(nextControllerTriggerState);
-  updateIgniterState();
+  if(!voltageIsLow) {
+    // Process any motor updates.
+    processAllMotorUpdates();
+  
+    // Check if the triggers have changed state, then check if the Igniter needs to be turned on or off.
+    updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
+    updateControllerTrigger(nextControllerTriggerState);
+    updateIgniterState();
+  }
 
 #if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
   // Check if it's time to send an update.
@@ -601,7 +604,6 @@ inline byte motorNumFromIndex(byte motorIndex) {
 }
 
 void processMotorUpdate(byte motorNum, byte motorIndex, uint8_t value, uint8_t speed) {
-
   // If the value has not changed, simply return.
   if (curMotorStates[motorNum][0] == value &&
       curMotorStates[motorNum][1] == speed)
@@ -868,8 +870,7 @@ void resetState(void) {
 
 void testMotors(uint8_t velocity, int interval)
 {
-  // Do not do anything, including turning off motors, if the voltage is low.
-  if (voltageIsLow)
+  if(voltageIsLow)
     return;
   
   initDevices();
