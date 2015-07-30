@@ -256,6 +256,8 @@ void setup()
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
 
+  checkBatteryVoltage();
+
   // Do the motor dance.
   testMotors(0x3F, 250);
   DBGPRINTLN("ready to go!");
@@ -315,6 +317,9 @@ boolean checkMotorFault()
 }
 
 float getBatteryVoltage() {
+#ifdef IGNORE_BATTERY
+  return BATTERY_CUTOFF;
+#else // IGNORE_BATTERY
   if(expanderPresent) {
 #ifdef DEBUG_VOLTAGE_READING
     int batteryReading = analogRead(BATT_PIN);
@@ -333,6 +338,21 @@ float getBatteryVoltage() {
 #else
   return VDD_V_SCALE * analogRead(1); // pin doesn't matter, reading from VDD src
 #endif
+#endif // IGNORE_BATTERY
+}
+
+void checkBatteryVoltage() {
+  float batteryVoltage = getBatteryVoltage();
+  if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
+    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
+    // TODO: disable motors and igniter
+    voltageIsLow = true;
+  } else {
+    // re-enable motors and igniter and normal lights?
+    // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
+    // to avoid the low voltage state bouncing when the voltage is on the cusp
+    // and motor activity temporarily brings it low. 
+  }
 }
 
 void updateLeds(unsigned long *curTime) {
@@ -405,17 +425,7 @@ void loop()
 {
   unsigned long loopMillis = millis();
 
-  float batteryVoltage = getBatteryVoltage();
-  if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
-    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
-    // TODO: disable motors and igniter
-    voltageIsLow = true;
-  } else {
-    // re-enable motors and igniter and normal lights?
-    // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
-    // to avoid the low voltage state bouncing when the voltage is on the cusp
-    // and motor activity temporarily brings it low. 
-  }
+  checkBatteryVoltage();
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
@@ -451,7 +461,7 @@ void loop()
       (fastUpdate && loopMillis - lastUpdateMillis >= FAST_UPDATE_INTERVAL)) {
     float curTemp = RFduino_temperature(FAHRENHEIT);
     byte statusFlags = (voltageIsLow ? RETURN_STATUS_LOW_VOLTAGE : 0);
-    unsigned short batteryVoltageX100 = (100.0 * batteryVoltage); // convert value to hundredths of a volt
+    unsigned short batteryVoltageX100 = (100.0 * getBatteryVoltage()); // convert value to hundredths of a volt
     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 6 + sizeof(batteryVoltageX100);
     char buf[bufLen];
     buf[0] = RETURN_MSG_UPDATE;
