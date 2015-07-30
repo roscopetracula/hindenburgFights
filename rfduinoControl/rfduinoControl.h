@@ -14,7 +14,8 @@ enum returnMsgEnum {RETURN_MSG_STRING = 0x00,
                  LEDSTATE_1_WAIT,
                  LEDSTATE_2_ON,
                  LEDSTATE_2_WAIT,
-                 LEDSTATE_LOW_VOLTAGE,
+                 LEDSTATE_LOW_VOLTAGE_BLINK_ON,
+                 LEDSTATE_LOW_VOLTAGE_BLINK_OFF
  };
  
  enum returnStatus {RETURN_STATUS_LOW_VOLTAGE = 0x01,
