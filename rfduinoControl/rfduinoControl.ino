@@ -846,6 +846,10 @@ void resetState(void) {
 
 void testMotors(uint8_t velocity, int interval)
 {
+  // Do not do anything, including turning off motors, if the voltage is low.
+  if (voltageIsLow)
+    return;
+  
   initDevices();
 
   delay(25);
