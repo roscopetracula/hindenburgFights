@@ -21,8 +21,9 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+#define IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
+#define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -195,6 +196,10 @@ int triggerPinCallback(uint32_t ulPin) {
   // it gets read.  If for some reason the callback gets called while
   // there genuinely is no trigger, we'll have to reevaluate this.
   triggerInterruptCalled = true;
+  
+#ifdef DEBUG_TRIGGER_INTERRUPT
+  DBGPRINT("!");
+#endif
   return 0;
 }
 
