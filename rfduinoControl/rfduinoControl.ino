@@ -21,7 +21,7 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#define IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
+#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
 
@@ -133,6 +133,8 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
   int result = 0;
   Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
+  byte wireAck = Wire.endTransmission();
+  
   Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
@@ -150,7 +152,6 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 void configureExpander() {
   uint8_t configuration=0;
   configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
-  
   // igniter and led1 and led2 are output
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
@@ -159,7 +160,7 @@ void configureExpander() {
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
-    // interrupt for motor fault
+    // interrupt for motor fault/interrupt
     pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
 
@@ -244,8 +245,6 @@ void setup()
   // start bluetooth
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
-  delay(20);
-  delay(20);
 
   // Do the motor dance.
   testMotors(0x3F, 250);
@@ -299,7 +298,7 @@ void RFduinoBLE_onRSSI(int rssi) {
 boolean checkMotorFault()
 {
   if(expanderPresent) {
-    return getExpanderInput(EXP_PIN_FAULT);
+    return !getExpanderInput(EXP_PIN_FAULT);
   } else {
     return (digitalRead(PRE_EXP_FAULT_PIN) == LOW);
   }
@@ -401,7 +400,7 @@ void loop()
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
-    DBGPRINTLN(" ----FAULT----  ");
+    DBGPRINTLN("--- FAULT ---");
     getFault(MOTOR1, true);
     getFault(MOTOR2, true);
     getFault(MOTOR3, true);
