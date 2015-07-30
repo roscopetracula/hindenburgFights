@@ -21,13 +21,9 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-<<<<<<< HEAD
 #undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
-=======
-#define DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
->>>>>>> b05a6e70608d9c1c57b19cdc7f754e6b292cf51d
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -134,10 +130,7 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
   Wire.beginTransmission(EXP_I2C_ADR);
   Wire.write(expRegister);
   byte wireAck = Wire.endTransmission();
-<<<<<<< HEAD
-  
-=======
->>>>>>> b05a6e70608d9c1c57b19cdc7f754e6b292cf51d
+
   Wire.requestFrom(EXP_I2C_ADR, 1, true);
   if (Wire.available()) {
     result = Wire.read();
@@ -259,10 +252,6 @@ void setup()
   // start bluetooth
   RFduinoBLE.deviceName = "RFduino Blimp";
   RFduinoBLE.begin();
-<<<<<<< HEAD
-=======
-  delay(20);
->>>>>>> b05a6e70608d9c1c57b19cdc7f754e6b292cf51d
 
   // Do the motor dance.
   testMotors(0x3F, 250);
