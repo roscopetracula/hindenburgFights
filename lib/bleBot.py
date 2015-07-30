@@ -81,11 +81,15 @@ class bleBotGui():
         # Build the status section.
         self.rssiTempLabel = gui.Label("? / ?\xb0F")
         self.voltageLabel = gui.Label("?v", background=GREEN)
+        self.voltageOverrideButton = gui.Button(gui.Label("O"));
+        self.voltageOverrideButton.connect(gui.CLICK, self.doVoltageOverride, None)
+        self.voltageOverrideButton.disabled = True
         self.trgLabel = gui.Label("trg", background=GREEN);
         self.ignLabel = gui.Label("ign", background=GREEN);
         self.frame.tr()
         self.frame.td(self.rssiTempLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=2)
-        self.frame.td(self.voltageLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
+        self.frame.td(self.voltageLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=1)
+        self.frame.td(self.voltageOverrideButton, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
         self.frame.td(self.trgLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
         self.frame.td(self.ignLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
         # Build the connection info and enable/disable button.
@@ -143,6 +147,13 @@ class bleBotGui():
     def doReset(self, value):
         self.bot.reset()
         
+    def doVoltageOverride(self, value):
+        # Note that this currently is a one-way override; you need to reset the device to
+        # undo the override.
+        if self.bot.connectionState == bleBot.CONNECTED:
+            self.bot.sendMessage("050100");
+        pass
+
     def doDisableOrEnable(self, value):
         if self.bot.connectionState != bleBot.DISABLED:
             self.bot.disable()
@@ -305,9 +316,11 @@ class bleBot():
             # Match the voltage reading color to the report of low voltage.
             if (self.returnStatus & 0x01):
                 if (self.gui.voltageLabel.style.background != RED):
+                    self.gui.voltageOverrideButton.disabled = False
                     self.gui.voltageLabel.style.background = RED;
             else:    
                 if (self.gui.voltageLabel.style.background != GREEN):
+                    self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = GREEN;
                 
             # Give us debug info.
