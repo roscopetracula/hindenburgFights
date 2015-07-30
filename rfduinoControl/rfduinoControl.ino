@@ -21,8 +21,7 @@
 #undef  TRANSMIT_FAULT_IMMEDIATE /* Transmit fault messages immediately upon receiving fault. Disabled by default to reduce wireless spam (as it now comes with updates). */
 #undef  TEST_MOTORS_ON_CONNECT   /* Define to do the "motor dance" when BLE connects or disconnects. */
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
-#undef  IGNORE_BATTERY           /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
-#define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
+#define DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -144,19 +143,12 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 }
 
 void configureExpander() {
-  int gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
-  DBGPRINTF("i2c_exp default configure register: %x \n",(int)gotConfig);
-  
   uint8_t configuration=0;
-  //configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
-  configuration = 0xCF;
+  configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
   
   // igniter and led1 and led2 are output
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
-    gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
-    DBGPRINTF("i2c_exp post config register: %x \n",(int)gotConfig);
-    
     expanderPresent = 1;
         
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
@@ -166,7 +158,7 @@ void configureExpander() {
     pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
   
-    gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
+    int gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
     if(gotConfig == configuration) {
       DBGPRINTLN("i2c_exp configured");
     } else {
@@ -205,10 +197,6 @@ int triggerPinCallback(uint32_t ulPin) {
   // it gets read.  If for some reason the callback gets called while
   // there genuinely is no trigger, we'll have to reevaluate this.
   triggerInterruptCalled = true;
-  
-#ifdef DEBUG_TRIGGER_INTERRUPT
-  DBGPRINT("!");
-#endif
   return 0;
 }
 
