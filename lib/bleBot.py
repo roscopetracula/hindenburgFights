@@ -509,7 +509,9 @@ class bleBot():
         for i in range(3):
             self.lastTxState[i] = self.motorState[i] 
             tmpMsg += "0"+str(i)+"".join(self.motorState[i])
+
         self.lastTxIgniterState = self.igniterState
+
         tmpMsg += "03"+"".join(self.igniterState)
         self.lastTxTime = time.time()
         self.sendMessage(tmpMsg)
@@ -547,5 +549,5 @@ class bleBot():
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
         
-    def setIgniterState(self, onOrOff):
-        self.igniterState = (onOrOff,"00")
+    def setIgniterState(self, onOrOff, flags):
+        self.igniterState = (onOrOff,flags)

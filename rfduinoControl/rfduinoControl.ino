@@ -23,6 +23,7 @@
 #undef  DEBUG_VOLTAGE_READING    /* Send debug messages every time we read the battery voltage. */
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
+#define REMOTE_IGNITER           /* Trigger igniter from controller signal */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -68,6 +69,11 @@
 #define SCL_PIN     6 /* 5 for slimstack board */
 #define SDA_PIN     5 /* 6 for slimstack board */
 #define TRIGGER_PIN IF_EXPANDER_ELSE(2,PRE_EXP_TRIGGER_PIN)
+
+// Controller trigger bits
+#define CTRL_BIT_LEFT_TRIGGER  0x04
+#define CTRL_BIT_RIGHT_TRIGGER 0x20
+#define CTRL_BIT_IGNITER       0x08
 
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -360,18 +366,50 @@ void checkBatteryVoltage() {
     DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
     voltageIsLow = true;
     initDevices();
-  } else {
-    // re-enable motors and igniter and normal lights?
-    // NOTE: we may want to either make the low voltage transition one-way or add hysteresis
+  } //else {
+    // low voltage transition is currently one-way 
+    // but we may want to add hysteresis
     // to avoid the low voltage state bouncing when the voltage is on the cusp
     // and motor activity temporarily brings it low. 
-  }
+  //}
 }
 
 void updateLeds(unsigned long *curTime) {
-  unsigned long elapsed = (*curTime) -ledStateLastChange;
+  static bool overrideLights=false;
+  unsigned long elapsed;
 
-  // TODO: alternate lighting when user pulls xbox trigger (help identify blimp)
+  if(igniterState == IGNITER_STATE_ON) {
+    // leave lights off if igniter is on
+    setExpanderOutput(EXP_PIN_LED_GREEN,1);    
+    setExpanderOutput(EXP_PIN_LED_RED,1);    
+    return; 
+  } // else
+  
+  if(!voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
+    overrideLights=true;
+    // alternate lighting when user pulls xbox trigger (help identify blimp)
+    if(curControllerTriggerState & CTRL_BIT_LEFT_TRIGGER) {
+      setExpanderOutput(EXP_PIN_LED_GREEN,0);    
+    } else {
+      setExpanderOutput(EXP_PIN_LED_GREEN,1);    
+    }
+    if(curControllerTriggerState & CTRL_BIT_RIGHT_TRIGGER) {
+      setExpanderOutput(EXP_PIN_LED_RED,0);    
+    } else {
+      setExpanderOutput(EXP_PIN_LED_RED,1);    
+    }
+    return; 
+  } // else
+
+  if(overrideLights) {
+    setExpanderOutput(EXP_PIN_LED_GREEN,1);    
+    //setExpanderOutput(EXP_PIN_LED_RED,1);    
+    overrideLights=false;
+    ledState = LEDSTATE_2_ON;
+    elapsed = 999999;
+  } else {
+    elapsed = (*curTime) -ledStateLastChange;
+  }
   
   ledStates ledNextState = ledState;
   
@@ -593,7 +631,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
       nextMotorStates[data[cmdStart + 0]][0] = data[cmdStart + 1];
       nextMotorStates[data[cmdStart + 0]][1] = data[cmdStart + 2];
     } else if (data[cmdStart + 0] == 0x03) {
-      nextControllerTriggerState = data[cmdStart + 1];
+      nextControllerTriggerState = data[cmdStart + 2];
     } else if (data[cmdStart + 0] == 0x04) {
       RFduino_systemReset();
     } else if (data[cmdStart + 0] == 0x05) {
@@ -675,10 +713,14 @@ void updateIgniter(byte igniterCode) {
 }
 
 void updateIgniterState(void) {
-  // Treat the controller and trigger as a single combined trigger.
-  bool igniterTriggered = curControllerTriggerState || blimpTriggerState || triggerInterruptCalled;
   unsigned int curMillis = millis();
 
+  // Treat the controller and trigger as a single combined trigger.
+  bool igniterTriggered = blimpTriggerState || triggerInterruptCalled;
+
+#ifdef REMOTE_IGNITER
+  igniterTriggered = igniterTriggered || (0 != (nextControllerTriggerState & CTRL_BIT_IGNITER));
+#endif
   // Reset the interrupt, regardless of whether it triggered or not.
   // In theory a new trigger can happen before this clears it, but that 
   // lost trigger is unlikely to matter when in the middle of handling an

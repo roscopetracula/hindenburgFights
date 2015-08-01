@@ -6,6 +6,10 @@ from pygame.locals import *
 
 CONTROLLERS = None
 
+IGNITER_BIT = 0x08
+LEFT_TRIGGER_BIT = 0x04
+RIGHT_TRIGGER_BIT = 0x20
+
 def load_config():
     global CONTROLLERS
     if not CONTROLLERS:
@@ -54,7 +58,9 @@ def create_controller(cfg):
         controller = XboxController(
             ble_control,
             cfg['orientation'],
-            cfg['igniterAxis'],
+            cfg['leftTriggerAxis'],
+            cfg['rightTriggerAxis'],
+            cfg['igniterButton'],
             joystick
         )
 
@@ -107,9 +113,9 @@ class KeyboardController(Controller):
 
         if keyAction == 'i':
             if evt.type==KEYUP:
-                self.bleBlimp.setIgniterState("00")
+                self.bleBlimp.setIgniterState("00","08") # 1<<3 = igniter button
             else:
-                self.bleBlimp.setIgniterState("01")
+                self.bleBlimp.setIgniterState("01","00")
         else:
             if keyAction == "f":
                 motorIndex = self.axisToMotorMap["f_b"][0]
@@ -143,14 +149,16 @@ class KeyboardController(Controller):
 
 
 class XboxController(Controller):
-    def __init__(self,bleBlimp,axisMap,igniterAxis,joystick,deadzone=0.3):
+    def __init__(self,bleBlimp,axisMap,leftTriggerAxis,rightTriggerAxis,igniterButton,joystick,deadzone=0.3):
         Controller.__init__(self,bleBlimp)
         self.axisMap = axisMap
         self.joystick = joystick
         #used to track changes in state; send only upon state change.
         self.axisState = []
         self.deadzone = deadzone
-        self.igniterAxis = igniterAxis
+        self.leftTriggerAxis = leftTriggerAxis
+        self.rightTriggerAxis = rightTriggerAxis
+        self.igniterButton = igniterButton
 
     def undeadzone(self,x):
         return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
@@ -175,12 +183,23 @@ class XboxController(Controller):
             nowAxisState[axis[1][0]]=motorSpeed
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
         
-        if self.joystick.get_axis( self.igniterAxis)>0:
-            self.bleBlimp.setIgniterState("01")
-            nowAxisState[3] = "01"
-        else:
-            self.bleBlimp.setIgniterState("00")
-            nowAxisState[3] = "00"
+	triggerStates = 0
+        igniterEnable = "00"
+        if self.joystick.get_button( self.igniterButton):
+            igniterEnable = "01"
+            triggerStates = triggerStates | IGNITER_BIT
+
+	if self.joystick.get_axis( self.leftTriggerAxis) > 0:
+            triggerStates = triggerStates | LEFT_TRIGGER_BIT
+
+	if self.joystick.get_axis( self.rightTriggerAxis) > 0:
+            triggerStates = triggerStates | RIGHT_TRIGGER_BIT
+
+ 	hexStr = hex(triggerStates)[-2:]
+        hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
+        nowAxisState[3] = hexStr
+
+        self.bleBlimp.setIgniterState(igniterEnable,hexStr)
 
         if nowAxisState != self.axisState:
             self.bleBlimp.autoTxUpdate()

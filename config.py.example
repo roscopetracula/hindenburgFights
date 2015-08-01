@@ -43,7 +43,9 @@ CONTROLLERS = [
             "r_l": (1, 3, -1.0),
             "u_d": (2, 1, 1.0),
         },
-	'igniterAxis': 5,
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
         'joystick': 0,
     },
 ]
