@@ -33,6 +33,8 @@ CONTROLLERS = [
             "u": pygame.K_o,
             "d": pygame.K_l,
 	    "i": pygame.K_SPACE,
+            "green": pygame.K_z,
+            "red": pygame.K_x,
         }
     },
     {

@@ -98,6 +98,8 @@ class KeyboardController(Controller):
             "u": pygame.K_o,
             "d": pygame.K_l,
 	    "i": pygame.K_SPACE,
+            "green": pygame.K_z,
+            "red": pygame.K_x,
         }
     }
 
@@ -111,11 +113,24 @@ class KeyboardController(Controller):
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
 
+        triggerStates = int(self.bleBlimp.getTriggerState()[1],16)
+
         if keyAction == "i":
             if evt.type==KEYUP:
-                self.bleBlimp.setIgniterState("00","00")
+                triggerStates = triggerStates & (0xff ^ IGNITER_BIT)
             else:
-                self.bleBlimp.setIgniterState("01","08") # 1<<3 = igniter button
+                triggerStates = triggerStates | IGNITER_BIT
+        elif keyAction == "red":
+            if evt.type==KEYUP:
+                triggerStates = triggerStates & (0xff ^ RIGHT_TRIGGER_BIT)
+            else:
+                triggerStates = triggerStates | RIGHT_TRIGGER_BIT
+        elif keyAction == "green":
+            if evt.type==KEYUP:
+                triggerStates = triggerStates & (0xff ^ LEFT_TRIGGER_BIT)
+            else:
+                triggerStates = triggerStates | LEFT_TRIGGER_BIT
+
         else:
             if keyAction == "f":
                 motorIndex = self.axisToMotorMap["f_b"][0]
@@ -145,6 +160,9 @@ class KeyboardController(Controller):
                     motorDirection = "02"
                 self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
 
+        triggerHex = hex(triggerStates)[-2:]
+        triggerHex = "0"+triggerHex[1] if triggerHex[0]=="x" else triggerHex
+	self.bleBlimp.setTriggerState("00",triggerHex)
         self.bleBlimp.autoTxUpdate()
 
 
@@ -184,9 +202,7 @@ class XboxController(Controller):
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
         
 	triggerStates = 0
-        igniterEnable = "00"
         if self.joystick.get_button( self.igniterButton):
-            igniterEnable = "01"
             triggerStates = triggerStates | IGNITER_BIT
 
 	if self.joystick.get_axis( self.leftTriggerAxis) > 0:
@@ -199,7 +215,7 @@ class XboxController(Controller):
         hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
         nowAxisState[3] = hexStr
 
-        self.bleBlimp.setIgniterState(igniterEnable,hexStr)
+        self.bleBlimp.setTriggerState("00",hexStr)
 
         if nowAxisState != self.axisState:
             self.axisState = nowAxisState

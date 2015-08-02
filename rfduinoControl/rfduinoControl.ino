@@ -403,7 +403,7 @@ void updateLeds(unsigned long *curTime) {
     setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
     setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
 
-  } else if (!voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
+  } else if (isConnected && !voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
     // alternate lighting when user pulls xbox trigger (help identify blimp)
     if (curControllerTriggerState & CTRL_BIT_LEFT_TRIGGER) {
       setExpanderOutput(EXP_PIN_LED_GREEN, LED_ON);
@@ -831,7 +831,7 @@ void updateIgniterState(void) {
 void updateControllerTrigger(byte triggerCode) {
   if (triggerCode != curControllerTriggerState) {
     curControllerTriggerState = triggerCode;
-    DBGPRINTF("controller trigger state change: %d\n", triggerCode);
+    DBGPRINTF("controller trigger state change: 0x%x\n", (int)triggerCode);
   }
 }
 

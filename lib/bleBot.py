@@ -207,8 +207,8 @@ class bleBot():
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
-        self.igniterState = ("00","00") # send ["01",xx] for on, anything else for off
-        self.lastTxIgniterState = ("00","00") # send ["01",xx] for on, anything else for off
+        self.triggerState = ("00","00") # 1st is 00, 2nd is bits for trigger/button states
+        self.lastTxTriggerState = ("00","00") # send ["01",xx] for on, anything else for off
         self.ignState = 0
         self.trgState = 0
         self.lastTxTime = 0
@@ -510,9 +510,9 @@ class bleBot():
             self.lastTxState[i] = self.motorState[i] 
             tmpMsg += "0"+str(i)+"".join(self.motorState[i])
 
-        self.lastTxIgniterState = self.igniterState
+        self.lastTxTriggerState = self.triggerState
 
-        tmpMsg += "03"+"".join(self.igniterState)
+        tmpMsg += "03"+"".join(self.triggerState)
         self.lastTxTime = time.time()
         self.sendMessage(tmpMsg)
 
@@ -534,11 +534,11 @@ class bleBot():
             if self.lastTxState[i] != self.motorState[i]:
                 self.lastTxState[i] = self.motorState[i]
                 changeFound = True
-        if self.igniterState != self.lastTxIgniterState:
+        if self.triggerState != self.lastTxTriggerState:
             # Note that interim igniter states can be lost. If we ever
             # return to manual triggering, we should make sure to keep
             # track of interim triggers in a separte variable.
-            self.lastTxIgniterState = self.igniterState
+            self.lastTxTriggerState = self.triggerState
             changeFound = True
 
         # If anything changed, retransmit.
@@ -549,5 +549,9 @@ class bleBot():
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
         
-    def setIgniterState(self, onOrOff, flags):
-        self.igniterState = (onOrOff,flags)
+    def setTriggerState(self, reserved, flags):
+        self.triggerState = (reserved ,flags)
+
+    def getTriggerState(self):
+        return self.triggerState
+
