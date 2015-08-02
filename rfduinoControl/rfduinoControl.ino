@@ -54,7 +54,7 @@
 #define BATT_PIN 4
 #define INT_PIN 3
 
-/* 
+/*
 // Macros for manually calculating divider split.
 #define VDIVIDER_TOP 10000.0
 #define VDIVIDER_BOTTOM 10000.0 // Theoretical 50/50 divider with 10k resistors.
@@ -109,10 +109,13 @@ unsigned long lastUpdateMillis = 0;
 bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
 
-// state machine to blink LEDs
+// blinky
+#define LED_ON 0
+#define LED_OFF 1
 #define LED_ON_MILLIS 15
 #define LED_OFF_MILLIS 1000
-ledStates ledState = LEDSTATE_1_ON;
+#define LED_OFF_SHORT_MILLIS 150
+ledStates ledState = LEDSTATE_START;
 unsigned long ledStateLastChange = 0;
 
 #ifdef SERIAL_ENABLE
@@ -136,7 +139,7 @@ byte writeExpanderRegister(uint8_t expRegister, uint8_t value) {
 #ifdef DEBUG_I2C_EXP
   DBGPRINTF("i2c_exp write %x %x %d\n", (int)expRegister,(int)value,(int)wireAck);
 #endif
-return wireAck;
+  return wireAck;
 }
 
 uint8_t readExpanderRegister(uint8_t expRegister) {
@@ -150,7 +153,7 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 #ifdef DEBUG_I2C_EXP
     DBGPRINTF("i2c_exp read %x from %d\n", (int) result, (int)expRegister);
 #endif
-  } else {  
+  } else {
 #ifdef DEBUG_I2C_EXP
     DBGPRINTF("i2c_exp failed to read from %d\n", (int)expRegister);
 #endif
@@ -161,26 +164,26 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 void configureExpander() {
   uint8_t configuration=0;
   configuration |= (1<<EXP_PIN_FAULT);  // fault pin is input
-  
+
   // igniter and led1 and led2 are output
   // looks like unused pins float. configured these as outputs to avoid spurious interrupts.
   if(writeExpanderRegister(EXP_REGISTER_CONFIG,configuration) == 0) {
     expanderPresent = 1;
-        
+
     // set outputs to default value (all low. right? this probably turns both LEDs ON and igniter OFF)
     writeExpanderRegister(EXP_REGISTER_OUTPUT,expanderOutput);
 
     // interrupt for motor fault
     pinMode(IF_EXPANDER_ELSE(INT_PIN,PRE_EXP_FAULT_PIN), INPUT); // interrupt/fault pin
     // todo: enable interrupt
-  
+
     int gotConfig = readExpanderRegister(EXP_REGISTER_CONFIG);
     if(gotConfig == configuration) {
       DBGPRINTLN("i2c_exp configured");
     } else {
       DBGPRINTF("i2c_exp failed to configure: %x != %x\n",(int)configuration,(int)gotConfig);
     }
-  
+
   } else {
     DBGPRINTLN("i2c_exp NOT found (old board)");
   }
@@ -221,27 +224,27 @@ int triggerPinCallback(uint32_t ulPin) {
 
 void setup_io() {
   analogReference(VBG); // Reference supply
-  
+
   /*
   analogSelection(AIN_1_3_PS);  // selected analog pin input, 1/3 prescaling as the analog source
-  int readBatt = analogRead(BATT_PIN); 
+  int readBatt = analogRead(BATT_PIN);
   analogSelection(VDD_1_3_PS);  // VDD input, 1/3 prescaling as the analog source
-  int readVdd = analogRead(BATT_PIN); 
+  int readVdd = analogRead(BATT_PIN);
   delay(20);
   DBGPRINTF("batt = %d, vdd = %d\n",readBatt,readVdd);
   */
-  
+
   // all boards: start i2c
   Wire.beginOnPins(SCL_PIN, SDA_PIN);
   delay(20);
 
   configureExpander();
-  
+
   pinMode(TRIGGER_PIN, INPUT);
   RFduino_pinWakeCallback(TRIGGER_PIN, 0, triggerPinCallback) ;
   RFduino_pinWake(TRIGGER_PIN, HIGH);
 
-  if(expanderPresent) { 
+  if(expanderPresent) {
     // new board
     pinMode(BATT_PIN, INPUT); // battery pin
     analogSelection(AIN_1_3_PS);  // selected analog pin input, 1/3 prescaling as the analog source
@@ -305,8 +308,8 @@ void bleSendString(const char *str) {
   }
 }
 
-// Send a printf-style formatted string.  This is currently a bit of a hack, 
-// using a fixed-size temporary buffer.  It should be easy to port asprintf; 
+// Send a printf-style formatted string.  This is currently a bit of a hack,
+// using a fixed-size temporary buffer.  It should be easy to port asprintf;
 // we may want to do that.
 void bleNPrintf(int maxLen, const char *format, ...)
 {
@@ -314,7 +317,7 @@ void bleNPrintf(int maxLen, const char *format, ...)
   va_list myargs;
   va_start(myargs, format);
   vsnprintf(buf, maxLen, format, myargs);
-  va_end(myargs);  
+  va_end(myargs);
   bleSendString(buf);
 }
 
@@ -359,7 +362,7 @@ float getBatteryVoltage() {
 void checkBatteryVoltage(unsigned long *curTime) {
   // If the override flag has been set, go back to running.
   if (overrideBatteryVoltage) {
-    // Disable low voltage detection, reset voltage state, and 
+    // Disable low voltage detection, reset voltage state, and
     // make sure we don't have a stored interrupt.
     overrideBatteryVoltage = false;
     ignoreBatteryVoltage = true;
@@ -368,12 +371,12 @@ void checkBatteryVoltage(unsigned long *curTime) {
     triggerInterruptCalled = false;
     fastUpdate = true;
   }
-  
+
   float batteryVoltage = getBatteryVoltage();
-  
+
   if (batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
     // low voltage reading detected, not already in low power mode
-    
+
     if(voltageLowStartTime == TIME_NEVER) {
       // turn off after voltage remains low for some measurable amount of time
       voltageLowStartTime = *curTime;
@@ -394,99 +397,108 @@ void checkBatteryVoltage(unsigned long *curTime) {
 }
 
 void updateLeds(unsigned long *curTime) {
-  static bool overrideLights=false;
-  unsigned long elapsed;
 
-  if(igniterState == IGNITER_STATE_ON) {
+  if (igniterState == IGNITER_STATE_ON) {
     // leave lights off if igniter is on
-    setExpanderOutput(EXP_PIN_LED_GREEN,1);    
-    setExpanderOutput(EXP_PIN_LED_RED,1);    
-    return; 
-  } // else
-  
-  if(!voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
-    overrideLights=true;
-    // alternate lighting when user pulls xbox trigger (help identify blimp)
-    if(curControllerTriggerState & CTRL_BIT_LEFT_TRIGGER) {
-      setExpanderOutput(EXP_PIN_LED_GREEN,0);    
-    } else {
-      setExpanderOutput(EXP_PIN_LED_GREEN,1);    
-    }
-    if(curControllerTriggerState & CTRL_BIT_RIGHT_TRIGGER) {
-      setExpanderOutput(EXP_PIN_LED_RED,0);    
-    } else {
-      setExpanderOutput(EXP_PIN_LED_RED,1);    
-    }
-    return; 
-  } // else
+    setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+    setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
 
-  if(overrideLights) {
-    setExpanderOutput(EXP_PIN_LED_GREEN,1);    
-    //setExpanderOutput(EXP_PIN_LED_RED,1);    
-    overrideLights=false;
-    ledState = LEDSTATE_2_ON;
-    elapsed = 999999;
+  } else if (!voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
+    // alternate lighting when user pulls xbox trigger (help identify blimp)
+    if (curControllerTriggerState & CTRL_BIT_LEFT_TRIGGER) {
+      setExpanderOutput(EXP_PIN_LED_GREEN, LED_ON);
+    } else {
+      setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+    }
+    if (curControllerTriggerState & CTRL_BIT_RIGHT_TRIGGER) {
+      setExpanderOutput(EXP_PIN_LED_RED, LED_ON);
+    } else {
+      setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
+    }
+    // after the triggers are both off, return to normal lighting
+    ledState = LEDSTATE_START;
+
   } else {
-    elapsed = (*curTime) -ledStateLastChange;
-  }
-  
-  ledStates ledNextState = ledState;
-  
-  switch(ledState) {
-case LEDSTATE_1_ON:
-    if(elapsed >= LED_ON_MILLIS) {
-      // turn off
-      setExpanderOutput(EXP_PIN_LED_GREEN,1);
-      ledNextState=LEDSTATE_1_WAIT;
+    unsigned long elapsed = (*curTime) - ledStateLastChange;
+    ledStates ledNextState = ledState;
+
+    switch (ledState) {
+    case LEDSTATE_START:
+      setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
+      setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+    case LEDSTATE_BEACON_OFF:
+      if (voltageIsLow) {
+        ledNextState=LEDSTATE_LOW_VOLTAGE;
+      } else if (!isConnected) {
+        ledNextState=LEDSTATE_CONNECTING;
+      } else if(elapsed >= LED_OFF_MILLIS ) {
+        setExpanderOutput(EXP_PIN_LED_GREEN, LED_ON);
+        ledNextState = LEDSTATE_BEACON_ON;
+      }
+      break;
+    case LEDSTATE_BEACON_ON:
+      if (elapsed >= LED_ON_MILLIS) {
+        // turn off 
+        setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+        ledNextState = LEDSTATE_BEACON_OFF;
+      }
+      break;
+
+    case LEDSTATE_LOW_VOLTAGE:
+      setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+    case LEDSTATE_LOW_VOLTAGE_BLINK_OFF:
+      if (!voltageIsLow) {
+        ledNextState = LEDSTATE_START;
+      } else if (elapsed >= LED_OFF_MILLIS) {
+        setExpanderOutput(EXP_PIN_LED_RED, LED_ON);
+        ledNextState = LEDSTATE_LOW_VOLTAGE_BLINK_ON;
+      }
+      break;
+    case LEDSTATE_LOW_VOLTAGE_BLINK_ON:
+      if (elapsed >= LED_ON_MILLIS) {
+        setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
+        ledNextState = LEDSTATE_LOW_VOLTAGE_BLINK_OFF;
+      }
+
+    case LEDSTATE_CONNECTING:
+      setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
+      setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+    case LEDSTATE_CONNECTING_GREEN_OFF:
+      if (voltageIsLow) {
+        ledNextState=LEDSTATE_LOW_VOLTAGE;
+      } else if (isConnected) {
+        ledNextState=LEDSTATE_START;
+      } else if (elapsed >= LED_OFF_SHORT_MILLIS ) {
+        setExpanderOutput(EXP_PIN_LED_GREEN, LED_ON);
+        ledNextState = LEDSTATE_CONNECTING_GREEN_ON;
+      }
+      break;
+    case LEDSTATE_CONNECTING_GREEN_ON:
+      if (elapsed >= LED_ON_MILLIS) {
+        setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
+        ledNextState = LEDSTATE_CONNECTING_RED_OFF;
+      }
+    case LEDSTATE_CONNECTING_RED_OFF:
+      if (elapsed >= LED_OFF_SHORT_MILLIS) {
+        setExpanderOutput(EXP_PIN_LED_RED, LED_ON);
+        ledNextState = LEDSTATE_CONNECTING_RED_ON;
+      }
+      break;
+    case LEDSTATE_CONNECTING_RED_ON:
+      if (elapsed >= LED_ON_MILLIS) {
+        setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
+        ledNextState = LEDSTATE_CONNECTING_GREEN_OFF;
+      }
+      break;
+    default:
+      ledNextState = LEDSTATE_START;
     }
-    break;
-case LEDSTATE_2_ON:
-    if(elapsed >= LED_ON_MILLIS) {
-      // turn off
-      setExpanderOutput(EXP_PIN_LED_RED,1);
-      ledNextState=LEDSTATE_2_WAIT;
+
+    // If we've changed state, mark the time.
+    if (ledState != ledNextState) {
+      ledStateLastChange = *curTime;
+      ledState = ledNextState;
     }
-    break;    
-case LEDSTATE_1_WAIT:
-    if(voltageIsLow) {
-      ledNextState = LEDSTATE_LOW_VOLTAGE_BLINK_OFF;
-    } else if(elapsed >= LED_OFF_MILLIS) {
-      // turn on
-      setExpanderOutput(EXP_PIN_LED_RED,0);
-      ledNextState=LEDSTATE_2_ON;
-    }
-    break;    
-case LEDSTATE_2_WAIT:
-    if(elapsed >= LED_OFF_MILLIS) {
-      // turn on
-      setExpanderOutput(EXP_PIN_LED_GREEN,0);
-      ledNextState=LEDSTATE_1_ON;
-    }
-    break;
-case LEDSTATE_LOW_VOLTAGE_BLINK_ON:
-    if(!voltageIsLow) {
-      ledNextState=LEDSTATE_1_ON;
-    } else if(elapsed >= LED_ON_MILLIS) {
-      // turn off
-      setExpanderOutput(EXP_PIN_LED_RED,1);
-      ledNextState=LEDSTATE_LOW_VOLTAGE_BLINK_OFF;
-    }
-case LEDSTATE_LOW_VOLTAGE_BLINK_OFF:
-    if(elapsed >= LED_OFF_MILLIS) {
-      // turn on
-      setExpanderOutput(EXP_PIN_LED_RED,0);
-      ledNextState=LEDSTATE_LOW_VOLTAGE_BLINK_ON;
-    }
-    break;
-    
-default:
-    ledNextState=LEDSTATE_1_ON;    
-  }  
- 
-  // If we've changed state, mark the time.
-  if (ledState != ledNextState) {
-    ledStateLastChange = *curTime;
-    ledState = ledNextState;
   }
 }
 
@@ -519,7 +531,7 @@ void loop()
   if(!voltageIsLow) {
     // Process any motor updates.
     processAllMotorUpdates();
-  
+
     // Check if the triggers have changed state, then check if the Igniter needs to be turned on or off.
     updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
     updateControllerTrigger(nextControllerTriggerState);
@@ -655,7 +667,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
     } else if (data[cmdStart + 0] == 0x05) {
       if (data[cmdStart + 1] == 0x01) {
         overrideBatteryVoltage = true;
-       } else {
+      } else {
         bleSendString("voltage override canceled but not implemented");
       }
     } else {
@@ -740,7 +752,7 @@ void updateIgniterState(void) {
   igniterTriggered = igniterTriggered || (0 != (nextControllerTriggerState & CTRL_BIT_IGNITER));
 #endif
   // Reset the interrupt, regardless of whether it triggered or not.
-  // In theory a new trigger can happen before this clears it, but that 
+  // In theory a new trigger can happen before this clears it, but that
   // lost trigger is unlikely to matter when in the middle of handling an
   // active trigger.
   triggerInterruptCalled = false;
@@ -950,7 +962,7 @@ void testMotors(uint8_t velocity, int interval)
 {
   if(voltageIsLow)
     return;
-  
+
   initDevices();
 
   delay(25);
