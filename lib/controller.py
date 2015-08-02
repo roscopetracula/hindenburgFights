@@ -111,11 +111,11 @@ class KeyboardController(Controller):
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
 
-        if keyAction == 'i':
+        if keyAction == "i":
             if evt.type==KEYUP:
-                self.bleBlimp.setIgniterState("00","08") # 1<<3 = igniter button
+                self.bleBlimp.setIgniterState("00","00")
             else:
-                self.bleBlimp.setIgniterState("01","00")
+                self.bleBlimp.setIgniterState("01","08") # 1<<3 = igniter button
         else:
             if keyAction == "f":
                 motorIndex = self.axisToMotorMap["f_b"][0]
@@ -202,8 +202,8 @@ class XboxController(Controller):
         self.bleBlimp.setIgniterState(igniterEnable,hexStr)
 
         if nowAxisState != self.axisState:
-            self.bleBlimp.autoTxUpdate()
             self.axisState = nowAxisState
+            self.bleBlimp.autoTxUpdate()
             # print nowAxisState
 
 

@@ -63,7 +63,10 @@
 */
 #define REAL_BATTERY_V_SCALE (2.0 * 3.6 / 1023.0) // if using the battery VCC
 #define VDD_V_SCALE (3.6 / 1023.0) // if using VDD reference
-#define BATTERY_CUTOFF 3.0
+#define BATTERY_CUTOFF 2.99
+#define BATTERY_RECOVERED_MIN_V 3.67 // low voltage state will automatically reset if battery voltage is at least this high
+#define BATTERY_CUTOFF_MILLIS 50 // must stay low for >0 milliseconds - not just a single read
+#define BATTERY_FAKE_VOLTAGE 4.0 // if voltage is being ignored
 
 // rfduino pin assignments.
 #define SCL_PIN     6 /* 5 for slimstack board */
@@ -93,7 +96,10 @@ bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
 bool fastUpdate = false;
-bool voltageIsLow = false; 
+
+bool voltageIsLow = false;
+#define TIME_NEVER -2147483647
+long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
 bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
 
@@ -265,7 +271,8 @@ void setup()
   RFduinoBLE.begin();
   delay(20);
 
-  checkBatteryVoltage();
+  unsigned long now = millis();
+  checkBatteryVoltage(&now);
 
   // Do the motor dance.
   testMotors(0x3F, 250);
@@ -327,7 +334,7 @@ boolean checkMotorFault()
 
 float getBatteryVoltage() {
   if (ignoreBatteryVoltage)
-    return BATTERY_CUTOFF;
+    return BATTERY_FAKE_VOLTAGE;
 
   if(expanderPresent) {
 #ifdef DEBUG_VOLTAGE_READING
@@ -349,7 +356,7 @@ float getBatteryVoltage() {
 #endif
 }
 
-void checkBatteryVoltage() {
+void checkBatteryVoltage(unsigned long *curTime) {
   // If the override flag has been set, go back to running.
   if (overrideBatteryVoltage) {
     // Disable low voltage detection, reset voltage state, and 
@@ -357,21 +364,33 @@ void checkBatteryVoltage() {
     overrideBatteryVoltage = false;
     ignoreBatteryVoltage = true;
     voltageIsLow = false;
+    voltageLowStartTime = TIME_NEVER;
     triggerInterruptCalled = false;
     fastUpdate = true;
   }
   
   float batteryVoltage = getBatteryVoltage();
-  if (expanderPresent && batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
-    DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV ----\n", batteryVoltage, BATTERY_CUTOFF);
-    voltageIsLow = true;
-    initDevices();
-  } //else {
-    // low voltage transition is currently one-way 
-    // but we may want to add hysteresis
-    // to avoid the low voltage state bouncing when the voltage is on the cusp
-    // and motor activity temporarily brings it low. 
-  //}
+  
+  if (batteryVoltage < BATTERY_CUTOFF && !voltageIsLow) {
+    // low voltage reading detected, not already in low power mode
+    
+    if(voltageLowStartTime == TIME_NEVER) {
+      // turn off after voltage remains low for some measurable amount of time
+      voltageLowStartTime = *curTime;
+    }
+    long elapsed = *curTime - voltageLowStartTime;
+    if(elapsed >= BATTERY_CUTOFF_MILLIS) {
+      DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV for %d ms ----\n", batteryVoltage, BATTERY_CUTOFF, (int)elapsed);
+      voltageIsLow = true;
+      initDevices();
+    }
+  } else {
+    // voltage is not low (now / anymore)
+    voltageLowStartTime = TIME_NEVER;
+    if(voltageIsLow && batteryVoltage >= BATTERY_RECOVERED_MIN_V) {
+      voltageIsLow = false;
+    }
+  }
 }
 
 void updateLeds(unsigned long *curTime) {
@@ -446,7 +465,6 @@ case LEDSTATE_2_WAIT:
     break;
 case LEDSTATE_LOW_VOLTAGE_BLINK_ON:
     if(!voltageIsLow) {
-      // probably this doesn't happen since LV never gets reset
       ledNextState=LEDSTATE_1_ON;
     } else if(elapsed >= LED_ON_MILLIS) {
       // turn off
@@ -476,7 +494,7 @@ void loop()
 {
   unsigned long loopMillis = millis();
 
-  checkBatteryVoltage();
+  checkBatteryVoltage(&loopMillis);
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
@@ -713,7 +731,7 @@ void updateIgniter(byte igniterCode) {
 }
 
 void updateIgniterState(void) {
-  unsigned int curMillis = millis();
+  unsigned long curMillis = millis();
 
   // Treat the controller and trigger as a single combined trigger.
   bool igniterTriggered = blimpTriggerState || triggerInterruptCalled;
