@@ -63,7 +63,7 @@
 */
 #define REAL_BATTERY_V_SCALE (2.0 * 3.6 / 1023.0) // if using the battery VCC
 #define VDD_V_SCALE (3.6 / 1023.0) // if using VDD reference
-#define BATTERY_CUTOFF 2.99
+#define BATTERY_CUTOFF 3.0
 #define BATTERY_RECOVERED_MIN_V 3.67 // low voltage state will automatically reset if battery voltage is at least this high
 #define BATTERY_CUTOFF_MILLIS 50 // must stay low for >0 milliseconds - not just a single read
 #define BATTERY_FAKE_VOLTAGE 4.0 // if voltage is being ignored
