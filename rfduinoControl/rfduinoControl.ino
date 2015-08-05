@@ -98,8 +98,8 @@ bool isConnected = false;
 bool fastUpdate = false;
 
 bool voltageIsLow = false;
-#define TIME_NEVER -2147483647
-long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
+#define TIME_NEVER 0xffff
+unsigned long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
 bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
 
@@ -274,8 +274,7 @@ void setup()
   RFduinoBLE.begin();
   delay(20);
 
-  unsigned long now = millis();
-  checkBatteryVoltage(&now);
+  checkBatteryVoltage(millis());
 
   // Do the motor dance.
   testMotors(0x3F, 250);
@@ -359,7 +358,7 @@ float getBatteryVoltage() {
 #endif
 }
 
-void checkBatteryVoltage(unsigned long *curTime) {
+void checkBatteryVoltage(unsigned long curTime) {
   // If the override flag has been set, go back to running.
   if (overrideBatteryVoltage) {
     // Disable low voltage detection, reset voltage state, and
@@ -379,24 +378,28 @@ void checkBatteryVoltage(unsigned long *curTime) {
 
     if(voltageLowStartTime == TIME_NEVER) {
       // turn off after voltage remains low for some measurable amount of time
-      voltageLowStartTime = *curTime;
+      voltageLowStartTime = curTime;
+      fastUpdate = true;
     }
-    long elapsed = *curTime - voltageLowStartTime;
+    unsigned long elapsed = curTime - voltageLowStartTime;
     if(elapsed >= BATTERY_CUTOFF_MILLIS) {
       DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV for %d ms ----\n", batteryVoltage, BATTERY_CUTOFF, (int)elapsed);
       voltageIsLow = true;
+      fastUpdate = true;
       initDevices();
     }
   } else {
     // voltage is not low (now / anymore)
     voltageLowStartTime = TIME_NEVER;
     if(voltageIsLow && batteryVoltage >= BATTERY_RECOVERED_MIN_V) {
+      // Voltage has recovered sufficiently to cancel the low voltage state.
       voltageIsLow = false;
+      fastUpdate = true;
     }
   }
 }
 
-void updateLeds(unsigned long *curTime) {
+void updateLeds(unsigned long curTime) {
 
   if (igniterState == IGNITER_STATE_ON) {
     // leave lights off if igniter is on
@@ -419,7 +422,7 @@ void updateLeds(unsigned long *curTime) {
     ledState = LEDSTATE_START;
 
   } else {
-    unsigned long elapsed = (*curTime) - ledStateLastChange;
+    unsigned long elapsed = curTime - ledStateLastChange;
     ledStates ledNextState = ledState;
 
     switch (ledState) {
@@ -496,7 +499,7 @@ void updateLeds(unsigned long *curTime) {
 
     // If we've changed state, mark the time.
     if (ledState != ledNextState) {
-      ledStateLastChange = *curTime;
+      ledStateLastChange = curTime;
       ledState = ledNextState;
     }
   }
@@ -506,7 +509,7 @@ void loop()
 {
   unsigned long loopMillis = millis();
 
-  checkBatteryVoltage(&loopMillis);
+  checkBatteryVoltage(loopMillis);
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
@@ -525,7 +528,7 @@ void loop()
   }
 
   if(expanderPresent) {
-    updateLeds(&loopMillis);
+    updateLeds(loopMillis);
   }
 
   if(!voltageIsLow) {
