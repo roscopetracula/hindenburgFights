@@ -95,8 +95,7 @@ unsigned long igniterTriggerReleased = 0;
 bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
-bool fastUpdate = false;
-
+int nextUpdateTime = 0; // Send the first update right away. 
 bool voltageIsLow = false;
 #define TIME_NEVER 0xffff
 unsigned long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
@@ -159,6 +158,12 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 #endif
   }
   return result;
+}
+
+// Make the next update faster.  If the value received is actually slower than the next scheduled update, don't change anything.
+void fastUpdate(int newUpdateTime = FAST_UPDATE_INTERVAL) {
+  if (newUpdateTime < nextUpdateTime)
+    nextUpdateTime = newUpdateTime;
 }
 
 void configureExpander() {
@@ -358,7 +363,7 @@ float getBatteryVoltage() {
 #endif
 }
 
-void checkBatteryVoltage(unsigned long curTime) {
+float checkBatteryVoltage(unsigned long curTime) {
   // If the override flag has been set, go back to running.
   if (overrideBatteryVoltage) {
     // Disable low voltage detection, reset voltage state, and
@@ -368,7 +373,7 @@ void checkBatteryVoltage(unsigned long curTime) {
     voltageIsLow = false;
     voltageLowStartTime = TIME_NEVER;
     triggerInterruptCalled = false;
-    fastUpdate = true;
+    fastUpdate(0);
   }
 
   float batteryVoltage = getBatteryVoltage();
@@ -379,13 +384,12 @@ void checkBatteryVoltage(unsigned long curTime) {
     if(voltageLowStartTime == TIME_NEVER) {
       // turn off after voltage remains low for some measurable amount of time
       voltageLowStartTime = curTime;
-      fastUpdate = true;
     }
     unsigned long elapsed = curTime - voltageLowStartTime;
-    if(elapsed >= BATTERY_CUTOFF_MILLIS) {
+    if (elapsed >= BATTERY_CUTOFF_MILLIS) {
       DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV for %d ms ----\n", batteryVoltage, BATTERY_CUTOFF, (int)elapsed);
       voltageIsLow = true;
-      fastUpdate = true;
+      fastUpdate(0);
       initDevices();
     }
   } else {
@@ -394,9 +398,11 @@ void checkBatteryVoltage(unsigned long curTime) {
     if(voltageIsLow && batteryVoltage >= BATTERY_RECOVERED_MIN_V) {
       // Voltage has recovered sufficiently to cancel the low voltage state.
       voltageIsLow = false;
-      fastUpdate = true;
+      fastUpdate(0);
     }
   }
+
+  return batteryVoltage;
 }
 
 void updateLeds(unsigned long curTime) {
@@ -509,7 +515,7 @@ void loop()
 {
   unsigned long loopMillis = millis();
 
-  checkBatteryVoltage(loopMillis);
+  float batteryVoltage = checkBatteryVoltage(loopMillis);
 
   // Check for any faults from the motor controllers and clear the ones we find.
   if (checkMotorFault()) {
@@ -543,11 +549,10 @@ void loop()
 
 #if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
   // Check if it's time to send an update.
-  if (loopMillis - lastUpdateMillis >= UPDATE_INTERVAL ||
-      (fastUpdate && loopMillis - lastUpdateMillis >= FAST_UPDATE_INTERVAL)) {
+  if (loopMillis - lastUpdateMillis >= nextUpdateTime) {
     float curTemp = RFduino_temperature(FAHRENHEIT);
     byte statusFlags = (voltageIsLow ? RETURN_STATUS_LOW_VOLTAGE : 0);
-    unsigned short batteryVoltageX100 = (100.0 * getBatteryVoltage()); // convert value to hundredths of a volt
+    unsigned short batteryVoltageX100 = (100.0 * batteryVoltage); // convert value to hundredths of a volt
     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 6 + sizeof(batteryVoltageX100);
     char buf[bufLen];
     buf[0] = RETURN_MSG_UPDATE;
@@ -563,9 +568,9 @@ void loop()
     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 5] = statusFlags;
     memcpy(&buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 6], &batteryVoltageX100, sizeof(batteryVoltageX100));
 
-    bleSendData(buf, bufLen);
-    lastUpdateMillis = millis();
-    fastUpdate = false;
+    bleSendData(buf, bufLen);         // Send the status update.
+    lastUpdateMillis = millis();      // Record the last update time.
+    nextUpdateTime = UPDATE_INTERVAL; // Return the next update time to default.
   }
 #endif
 }
@@ -576,6 +581,7 @@ void RFduinoBLE_onConnect() {
 #ifdef TEST_MOTORS_ON_CONNECT
   testMotors(0x3F, 100);
 #endif
+  fastUpdate(0); // Immediately send an update on connect.
 }
 
 void RFduinoBLE_onDisconnect() {
@@ -737,7 +743,7 @@ void setIgniter(byte igniterCode) {
     }
   }
   igniterStateByte = igniterCode;
-  fastUpdate = true;
+  fastUpdate(0);
 }
 
 void updateIgniter(byte igniterCode) {
@@ -842,7 +848,7 @@ void updateBlimpTrigger(byte triggerCode) {
   if (triggerCode != blimpTriggerState) {
     blimpTriggerState = triggerCode;
     DBGPRINTF("blimp trigger state change: %d%s\n", triggerCode, (triggerCode == 1 && igniterState == IGNITER_STATE_LOCKED) ? " (but IGNITER_STATE_LOCKED)" : "");
-    fastUpdate = true;
+    fastUpdate();
   }
 }
 
