@@ -1,4 +1,6 @@
-old/
 *.pyc
 *.swp
-config.py
+*~
+\#*#
+config.py*
+
