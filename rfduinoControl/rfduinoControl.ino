@@ -24,6 +24,7 @@
 #undef  DEBUG_I2C_EXP            /* Debug messages to/from i2c expander. */
 #define DEBUG_TRIGGER_INTERRUPT  /* Print a "!" when a trigger interrupt happens. */
 #define REMOTE_IGNITER           /* Trigger igniter from controller signal */
+#define ENABLE_MOTOR_FAULT_MODE  /* If a motor faults, perform a cool-down sequence */
 
 // Motor and other i2c addresses.
 #define MOTOR1 0x63
@@ -33,6 +34,15 @@
 #define FAULT 0x01
 #define PROTOCOL_VERSION 1
 #define V_SET 0x3f // 3f = 5.06, or ~20v max output.
+
+#define MOTOR_FAULT_FAULT 0x01
+#define MOTOR_FAULT_OCP 0x02
+#define MOTOR_FAULT_UVLO 0x04
+#define MOTOR_FAULT_OTS 0x08
+#define MOTOR_FAULT_ILIMIT 0x10
+
+#define MOTOR_FAULT_MODE_MASK (MOTOR_FAULT_FAULT | MOTOR_FAULT_OCP | MOTOR_FAULT_UVLO | MOTOR_FAULT_OTS | MOTOR_FAULT_ILIMIT ) /* motor fault bits that will trigger motor fault mode */
+#define MOTOR_FAULT_MODE_RESET_MILLIS 250 /* minimum elapsed time until motor fault mode ends */
 
 // i2c expander
 #define EXP_I2C_ADR 0x20
@@ -101,6 +111,7 @@ bool voltageIsLow = false;
 unsigned long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
 bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
+unsigned long motorFaultModeStart[3] = {TIME_NEVER, TIME_NEVER, TIME_NEVER}; /* the time at which the fault cool-off state started for a certain motor, or TIME_NEVER for normal operation */
 
 #if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
 unsigned long lastUpdateMillis = 0;
@@ -511,19 +522,50 @@ void updateLeds(unsigned long curTime) {
   }
 }
 
+void updateMotorFaults(unsigned long now) {
+  // First check for any faults from the motor controllers and clear the ones we find.
+  if (checkMotorFault()) {
+    DBGPRINTLN(" ----FAULT----  ");
+    for(int motorNum=0; motorNum<3; motorNum++) {
+      uint8_t fault = getFault(motorIndexes[motorNum],motorNum,true);
+#ifdef ENABLE_MOTOR_FAULT_MODE
+      if (0 != (fault & MOTOR_FAULT_MODE_MASK) ) {
+        if(motorFaultModeStart[motorNum] == TIME_NEVER) {
+          // when the fault state begins, put the motor in coast
+          setCoast(motorIndexes[motorNum]);
+        }
+        // keep updating the fault start time (re-faulting) while a fault is still present
+        motorFaultModeStart[motorNum] = now;
+      }
+#endif
+    }
+  }
+
+#ifdef ENABLE_MOTOR_FAULT_MODE
+  // if a qualifying motor fault event happened recently, the time of the event 
+  // will be stored in motorFaultModeStart[motor]
+  //
+  // here, we reset the fault mode after enough time has passed since it cleared
+  for(int motorNum=0;motorNum<3;motorNum++) {
+    if(motorFaultModeStart[motorNum] != TIME_NEVER) {
+      int elapsed = now - motorFaultModeStart[motorNum];
+      if(elapsed > MOTOR_FAULT_MODE_RESET_MILLIS) {
+        // time to reset this motor and take it out of coast
+        motorFaultModeStart[motorNum] = TIME_NEVER;
+        setBrake(motorIndexes[motorNum]);
+      } 
+    }
+  }
+#endif
+}
+
 void loop()
 {
   unsigned long loopMillis = millis();
 
   float batteryVoltage = checkBatteryVoltage(loopMillis);
 
-  // Check for any faults from the motor controllers and clear the ones we find.
-  if (checkMotorFault()) {
-    DBGPRINTLN(" ----FAULT----  ");
-    getFault(MOTOR1, true);
-    getFault(MOTOR2, true);
-    getFault(MOTOR3, true);
-  }
+  updateMotorFaults(loopMillis);
 
   // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that loopMillis can actually be less than lastPingMillis, as receives are asynchronous.
   if (loopMillis - lastPingMillis > CONNECTION_TIMEOUT && loopMillis > lastPingMillis && timeoutPossible == 1) {
@@ -719,6 +761,11 @@ void processMotorUpdate(byte motorNum, byte motorIndex, uint8_t value, uint8_t s
 // Try to update all motor states.  State differencing is done in processMotorUpdate.
 void processAllMotorUpdates(void) {
   for (int i = 0; i < 3; i++) {
+#ifdef ENABLE_MOTOR_FAULT_MODE
+    if (motorFaultModeStart[i] != TIME_NEVER) {
+      // there is a fault right now. motor should be in coast.
+    } else
+#endif
     processMotorUpdate(i, motorIndexes[i], nextMotorStates[i][0], nextMotorStates[i][1]);
   }
 }
@@ -880,7 +927,7 @@ void setBrake(byte thisMotor) {
   sendMessage(thisMotor, value, "brake");
 }
 
-void getFault(int thisMotor, bool shouldClearFault) {
+uint8_t getFault(int thisMotor, int motorNum, bool shouldClearFault) {
   uint8_t registerFault;
   uint8_t totalRegisterFaults = 0;
 
@@ -898,7 +945,7 @@ void getFault(int thisMotor, bool shouldClearFault) {
 
 #ifdef TRANSMIT_FAULT_IMMEDIATE
       // Send a fault report to the client.
-      char sendBuf[3] = {RETURN_MSG_FAULT, motorNumFromIndex(thisMotor), registerFault};
+      char sendBuf[3] = {RETURN_MSG_FAULT, motorIndex, registerFault};
       bleSendData(sendBuf, 3);
 #endif
 
@@ -933,6 +980,8 @@ void getFault(int thisMotor, bool shouldClearFault) {
   // If we had any faults and we are supposed to clear them, do so.
   if (shouldClearFault && totalRegisterFaults != 0)
     clearFault(thisMotor);
+
+  return registerFault;
 }
 
 void clearFault(byte thisMotor) {
@@ -959,9 +1008,10 @@ void initDevices(void) {
 
 void resetState(void) {
   initDevices();
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 2; j++)
       curMotorStates[i][i] = 0;
+  }
   blimpTriggerState = 0;
   curControllerTriggerState = 0;
   expectedMsgCounter = 0xff;
