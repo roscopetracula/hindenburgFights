@@ -3,9 +3,10 @@
 #include "rfduinoControl.h"
 
 // General timeouts/intevals.
-#define CONNECTION_TIMEOUT   1000 /* Time (ms) with no received messages before all motors are turned off. */
-#define UPDATE_INTERVAL      1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
-#define FAST_UPDATE_INTERVAL  100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
+#define CONNECTION_TIMEOUT      1000 /* Time (ms) with no received messages before all motors are turned off. */
+#define UPDATE_INTERVAL_DEFAULT 1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
+#define UPDATE_INTERVAL_FAST     100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
+#define UPDATE_INTERVAL_IMMEDIATE  0 /* Interval to use to immediately update the client. */
 
 // Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
@@ -95,18 +96,15 @@ unsigned long igniterTriggerReleased = 0;
 bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
-int nextUpdateTime = 0; // Send the first update right away. 
 bool voltageIsLow = false;
 #define TIME_NEVER 0xffff
 unsigned long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
 bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
 bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
-
-#if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
-unsigned long lastUpdateMillis = 0;
-#endif
 bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
+unsigned int nextUpdateTime = 0; // Send the first update right away. 
+unsigned long lastUpdateMillis = 0;
 
 // blinky
 #define LED_ON 0
@@ -161,7 +159,7 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 }
 
 // Make the next update faster.  If the value received is actually slower than the next scheduled update, don't change anything.
-void fastUpdate(int newUpdateTime = FAST_UPDATE_INTERVAL) {
+void fastUpdate(int newUpdateTime = UPDATE_INTERVAL_FAST) {
   if (newUpdateTime < nextUpdateTime)
     nextUpdateTime = newUpdateTime;
 }
@@ -373,7 +371,7 @@ float checkBatteryVoltage(unsigned long curTime) {
     voltageIsLow = false;
     voltageLowStartTime = TIME_NEVER;
     triggerInterruptCalled = false;
-    fastUpdate(0);
+    fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
   }
 
   float batteryVoltage = getBatteryVoltage();
@@ -384,12 +382,13 @@ float checkBatteryVoltage(unsigned long curTime) {
     if(voltageLowStartTime == TIME_NEVER) {
       // turn off after voltage remains low for some measurable amount of time
       voltageLowStartTime = curTime;
+      fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
     }
     unsigned long elapsed = curTime - voltageLowStartTime;
     if (elapsed >= BATTERY_CUTOFF_MILLIS) {
       DBGPRINTF(" ---- LOW VOLTAGE %fV < %fV for %d ms ----\n", batteryVoltage, BATTERY_CUTOFF, (int)elapsed);
       voltageIsLow = true;
-      fastUpdate(0);
+      fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
       initDevices();
     }
   } else {
@@ -398,7 +397,7 @@ float checkBatteryVoltage(unsigned long curTime) {
     if(voltageIsLow && batteryVoltage >= BATTERY_RECOVERED_MIN_V) {
       // Voltage has recovered sufficiently to cancel the low voltage state.
       voltageIsLow = false;
-      fastUpdate(0);
+      fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
     }
   }
 
@@ -406,7 +405,7 @@ float checkBatteryVoltage(unsigned long curTime) {
 }
 
 void updateLeds(unsigned long curTime) {
-
+ 
   if (igniterState == IGNITER_STATE_ON) {
     // leave lights off if igniter is on
     setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
@@ -547,7 +546,6 @@ void loop()
     updateIgniterState();
   }
 
-#if defined(UPDATE_INTERVAL) || defined(FAST_UPDATE_INTERVAL)
   // Check if it's time to send an update.
   if (loopMillis - lastUpdateMillis >= nextUpdateTime) {
     float curTemp = RFduino_temperature(FAHRENHEIT);
@@ -568,11 +566,10 @@ void loop()
     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 5] = statusFlags;
     memcpy(&buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 6], &batteryVoltageX100, sizeof(batteryVoltageX100));
 
-    bleSendData(buf, bufLen);         // Send the status update.
-    lastUpdateMillis = millis();      // Record the last update time.
-    nextUpdateTime = UPDATE_INTERVAL; // Return the next update time to default.
+    bleSendData(buf, bufLen);                 // Send the status update.
+    lastUpdateMillis = millis();              // Record the last update time.
+    nextUpdateTime = UPDATE_INTERVAL_DEFAULT; // Return the next update time to default.
   }
-#endif
 }
 
 void RFduinoBLE_onConnect() {
@@ -581,7 +578,7 @@ void RFduinoBLE_onConnect() {
 #ifdef TEST_MOTORS_ON_CONNECT
   testMotors(0x3F, 100);
 #endif
-  fastUpdate(0); // Immediately send an update on connect.
+  fastUpdate(UPDATE_INTERVAL_IMMEDIATE); // Immediately send an update on connect.
 }
 
 void RFduinoBLE_onDisconnect() {
@@ -743,7 +740,7 @@ void setIgniter(byte igniterCode) {
     }
   }
   igniterStateByte = igniterCode;
-  fastUpdate(0);
+  fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
 }
 
 void updateIgniter(byte igniterCode) {

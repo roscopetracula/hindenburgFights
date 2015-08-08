@@ -17,6 +17,8 @@ DEBUG_RX = True         # Print debug messages for generic received
 DEBUG_UPDATE = False    # Print debug messages for received updates.
 DEBUG_CONNECT = False   # Print debug messages for connections and
                         # disconnections.
+DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
+                        # status.
 
 # Constants
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
@@ -258,7 +260,7 @@ class bleBot():
         return faults
 
     def decodeFaultsShort(self, faultValue):
-        return "{:s}|{:s}|{:s}|{:s}|{:s}".format("FA" if faultValue & 0x01 else "fa", "O" if faultValue & 0x02 else "oc", "UV" if faultValue & 0x04 else "uv", "OT" if faultValue & 0x08 else "ot", "IL" if faultValue & 0x10 else "il") 
+        return "{:s}|{:s}|{:s}|{:s}|{:s}".format("FA" if faultValue & 0x01 else "fa", "OC" if faultValue & 0x02 else "oc", "UV" if faultValue & 0x04 else "uv", "OT" if faultValue & 0x08 else "ot", "IL" if faultValue & 0x10 else "il") 
     
     def handleNotification(self, cHandle, data): 
         if (cHandle <> 14):
@@ -318,10 +320,21 @@ class bleBot():
                 if (self.gui.voltageLabel.style.background != RED):
                     self.gui.voltageOverrideButton.disabled = False
                     self.gui.voltageLabel.style.background = RED;
-            else:    
+                    if DEBUG_VOLTAGE:
+                        print "{:s} transitioned to LOW VOLTAGE mode ({:d})".format(self.ble_adr, self.batteryVoltage)
+
+            elif (self.batteryVoltage < 3.0):
+                if (self.gui.voltageLabel.style.background != YELLOW):
+                    self.gui.voltageOverrideButton.disabled = True
+                    self.gui.voltageLabel.style.background = YELLOW;
+                    if DEBUG_VOLTAGE:
+                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:d})".format(self.ble_adr, self.batteryVoltage)
+            else:
                 if (self.gui.voltageLabel.style.background != GREEN):
                     self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = GREEN;
+                    if DEBUG_VOLTAGE:
+                        print "{:s} voltage mode returned to NORMAL ({:d})".format(self.ble_adr, self.batteryVoltage)
                 
             # Give us debug info.
             if DEBUG_UPDATE:
