@@ -321,20 +321,20 @@ class bleBot():
                     self.gui.voltageOverrideButton.disabled = False
                     self.gui.voltageLabel.style.background = RED;
                     if DEBUG_VOLTAGE:
-                        print "{:s} transitioned to LOW VOLTAGE mode ({:d})".format(self.ble_adr, self.batteryVoltage)
+                        print "{:s} transitioned to LOW VOLTAGE mode ({:f})".format(self.ble_adr, self.batteryVoltage)
 
             elif (self.batteryVoltage < 3.0):
                 if (self.gui.voltageLabel.style.background != YELLOW):
                     self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = YELLOW;
                     if DEBUG_VOLTAGE:
-                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:d})".format(self.ble_adr, self.batteryVoltage)
+                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:f})".format(self.ble_adr, self.batteryVoltage)
             else:
                 if (self.gui.voltageLabel.style.background != GREEN):
                     self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = GREEN;
                     if DEBUG_VOLTAGE:
-                        print "{:s} voltage mode returned to NORMAL ({:d})".format(self.ble_adr, self.batteryVoltage)
+                        print "{:s} voltage mode returned to NORMAL ({:f})".format(self.ble_adr, self.batteryVoltage)
                 
             # Give us debug info.
             if DEBUG_UPDATE:
