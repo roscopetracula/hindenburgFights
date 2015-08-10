@@ -48,6 +48,9 @@ def doResetAll(value = None):
     for controller in controllers:
         controller.bleBlimp.reset()
 
+def doRestart():
+    os.execvp(sys.argv[0], sys.argv)
+
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a ull device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
@@ -57,6 +60,10 @@ group.add_argument('--default-enabled', action='store_true', help='enable all bl
 parser.add_argument('--minimum-blimps', action='store', help='make sure we have at least N blimps, creating dummies where needed', default='0', metavar="N", type=int)
 args = parser.parse_args()
 Controller.CONFIG_FILE = args.config
+
+# Kill all bluepy helpers.  Note that this prevents running more than
+# one blimpControl at once!
+os.system("killall -q bluepy-helper")
 
 # If it was set on the command line, override the default blimp state.
 if args.default_enabled:
@@ -136,7 +143,7 @@ controllers = load_controllers()
 while (len(controllers) < args.minimum_blimps):
     controllers.append(create_controller(KeyboardController.DummyKeyboardController))       
 numControllers = len(controllers)
-controllersPerLine = 2 if numControllers < 5 else 3
+controllersPerLine = 4
 
 # Initialize GUI.
 guiApp = gui.Desktop()
@@ -294,6 +301,9 @@ while True:
             
         elif (event.type == KEYDOWN and event.key == pygame.K_r):
             doResetAll()
+            
+        elif (event.type == KEYDOWN and event.key == pygame.K_x):
+            doRestart()
             
         elif (event.type == KEYDOWN or event.type == KEYUP):
             for controller in controllers:
