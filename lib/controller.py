@@ -36,7 +36,7 @@ def has_xbox_controller():
     return False
 
 def create_controller(cfg):
-    ble_control = bleBot(cfg['uuid'], cfg['type'])
+    ble_control = bleBot(cfg['name'], cfg['uuid'], cfg['type'])
 
     if cfg['type'] == KEYBOARD:
         controller = KeyboardController(

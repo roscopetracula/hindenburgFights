@@ -17,8 +17,10 @@ DEBUG_RX = True         # Print debug messages for generic received
 DEBUG_UPDATE = False    # Print debug messages for received updates.
 DEBUG_CONNECT = False   # Print debug messages for connections and
                         # disconnections.
-DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
+DEBUG_VOLTAGE = False   # Print debug messages for blimp voltage
                         # status.
+DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
+DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
 
 # Constants
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
@@ -48,7 +50,7 @@ class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
 
-    def __init__( self, ble_adr, ble_bot, type ):
+    def __init__( self, ble_bot, type ):
         # Set up the frame (table) representing this bot's controls.
         self.bot = ble_bot
         self.frame = gui.Table()
@@ -62,7 +64,7 @@ class bleBotGui():
             typename = "xbox"
         else:
             typename = "kbd"
-        self.frame.td(gui.Label("{:s} ({:s})".format(ble_adr, typename)), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
+        self.frame.td(gui.Label("{:s} ({:s}/{:s})".format(self.bot.name, self.bot.ble_adr, typename)), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
     
         # Build the table of axes, including sliders and faults.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
@@ -193,12 +195,13 @@ class bleBot():
     FAILED=4
     DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 
-    def __init__( self, ble_adr, type ):
+    def __init__( self, name, ble_adr, type ):
 
         # Set up connection-related data.
         self.protocolversion = "01"
         self.controller = None
         self.ble_adr = ble_adr
+        self.name = name
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
         if bleBot.DEFAULT_ENABLED:
@@ -220,7 +223,7 @@ class bleBot():
         self.lastFaultTime = [0, 0, 0]
         self.lastConnectStart = 0
         self.lastUpdate = time.time()
-        self.gui = bleBotGui(ble_adr, self, type)
+        self.gui = bleBotGui(self, type)
         return
 
     def reset(self):
@@ -298,17 +301,25 @@ class bleBot():
                 if self.ignState:
                     self.gui.ignLabel.set_text("IGN")
                     self.gui.ignLabel.style.background = RED
+                    if DEBUG_IGNITER:
+                        print "{:s} IGNITER ON".format(self.ble_adr)
                 else:
                     self.gui.ignLabel.set_text("ign")
                     self.gui.ignLabel.style.background = GREEN
+                    if DEBUG_IGNITER:
+                        print "{:s} igniter off".format(self.ble_adr)
             if (self.trgState != ord(data[8+4])):
                 self.trgState = ord(data[8+4])
                 if self.trgState:
                     self.gui.trgLabel.set_text("TRG")
                     self.gui.trgLabel.style.background = RED
+                    if DEBUG_TRIGGER:
+                        print "{:s} TRIGGER ON".format(self.ble_adr)
                 else:
                     self.gui.trgLabel.set_text("trg")
                     self.gui.trgLabel.style.background = GREEN
+                    if DEBUG_TRIGGER:
+                        print "{:s} trigger off".format(self.ble_adr)
 
             self.returnStatus = ord(data[13])
             self.batteryVoltage = struct.unpack("<H", "".join(data[14:16]))[0] * 0.01;
