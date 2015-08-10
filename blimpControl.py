@@ -180,7 +180,7 @@ for c in range(0, numControllers):
         guiAppTable.tr()
         guiAppTable.td(gui.Spacer(1,1))
         guiAppTable.tr()
-    elif (c != 0):
+    else: 
         guiAppTable.td(gui.Spacer(1,1))
     guiAppTable.td(controller.bleBlimp.gui.frame)
 if (appIcon):
