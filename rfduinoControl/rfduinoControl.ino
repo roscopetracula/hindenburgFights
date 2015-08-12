@@ -85,9 +85,10 @@
 #define TRIGGER_PIN IF_EXPANDER_ELSE(2,PRE_EXP_TRIGGER_PIN)
 
 // Controller trigger bits
-#define CTRL_BIT_LEFT_TRIGGER  0x04
-#define CTRL_BIT_RIGHT_TRIGGER 0x20
-#define CTRL_BIT_IGNITER       0x08
+#define CTRL_BIT_LEFT_TRIGGER    0x04
+#define CTRL_BIT_RIGHT_TRIGGER   0x20
+#define CTRL_BIT_IGNITER         0x08
+#define CTRL_BIT_SUPRESS_IGNITER 0x01
 
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};

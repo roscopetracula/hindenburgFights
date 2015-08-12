@@ -113,7 +113,7 @@ class KeyboardController(Controller):
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
 
-        triggerStates = int(self.bleBlimp.getTriggerState()[1],16)
+        triggerStates = self.bleBlimp.getTriggerState()
 
         if keyAction == "i":
             if evt.type==KEYUP:
@@ -160,9 +160,7 @@ class KeyboardController(Controller):
                     motorDirection = "02"
                 self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
 
-        triggerHex = hex(triggerStates)[-2:]
-        triggerHex = "0"+triggerHex[1] if triggerHex[0]=="x" else triggerHex
-	self.bleBlimp.setTriggerState("00",triggerHex)
+	self.bleBlimp.setTriggerState(triggerStates)
         self.bleBlimp.autoTxUpdate()
 
 
@@ -215,7 +213,7 @@ class XboxController(Controller):
         hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
         nowAxisState[3] = hexStr
 
-        self.bleBlimp.setTriggerState("00",hexStr)
+        self.bleBlimp.setTriggerState(triggerStates)
 
         if nowAxisState != self.axisState:
             self.axisState = nowAxisState

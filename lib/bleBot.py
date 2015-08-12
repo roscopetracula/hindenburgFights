@@ -212,8 +212,8 @@ class bleBot():
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
-        self.triggerState = ("00","00") # 1st is 00, 2nd is bits for trigger/button states
-        self.lastTxTriggerState = ("00","00") # send ["01",xx] for on, anything else for off
+        self.triggerState = 0 # 1st is 00, 2nd is bits for trigger/button states
+        self.lastTxTriggerState = 0 # send ["01",xx] for on, anything else for off
         self.batterySessionStart = time.time()
         self.ignState = 0
         self.trgState = 0
@@ -545,7 +545,7 @@ class bleBot():
 
         self.lastTxTriggerState = self.triggerState
 
-        tmpMsg += "03"+"".join(self.triggerState)
+        tmpMsg += "0300{:02x}".format(self.triggerState)
         self.lastTxTime = time.time()
         self.sendMessage(tmpMsg)
 
@@ -582,8 +582,8 @@ class bleBot():
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
         
-    def setTriggerState(self, reserved, flags):
-        self.triggerState = (reserved ,flags)
+    def setTriggerState(self, newTriggerState):
+        self.triggerState = newTriggerState
 
     def getTriggerState(self):
         return self.triggerState
