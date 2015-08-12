@@ -8,7 +8,7 @@ import string
 import struct
 from bluepy.bluepy import btle
 from pgu import gui
-from lib.constants import XBOX, KEYBOARD
+from lib.constants import *
 
 # Flags
 DEBUG_TX = False        # Print debug messages for transmissions.
@@ -22,24 +22,7 @@ DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
 DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
 
-# Constants
-TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
-                             # in this period (s).
-MIN_TRANSMIT_INTERVAL = 0.1 # Don't transmit more than once in this
-                            # period (s).
-MAX_CONNECT_TIME = 0.5      # Maximum time (s) to spend on a
-                            # connection attempt before timing out.
-                        
-# Colors
-RED=(255,0,0)
-GREEN=(0,255,0)
-BLUE=(0,0,255)
-CYAN=(0,255,255)
-PURPLE=(255,0,255)
-YELLOW=(255,255,0)        
-WHITE=(255,255,255)
-BLACK=(0,0,0)
-
+# GUI Constants
 BLIMP_OUTER_BORDER=3
 BLIMP_INNER_BORDER=1
 BLIMP_AXIS_WIDTH=120
