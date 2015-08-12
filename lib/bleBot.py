@@ -17,7 +17,7 @@ DEBUG_RX = True         # Print debug messages for generic received
 DEBUG_UPDATE = False    # Print debug messages for received updates.
 DEBUG_CONNECT = False   # Print debug messages for connections and
                         # disconnections.
-DEBUG_VOLTAGE = False   # Print debug messages for blimp voltage
+DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
                         # status.
 DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
@@ -214,6 +214,7 @@ class bleBot():
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.triggerState = ("00","00") # 1st is 00, 2nd is bits for trigger/button states
         self.lastTxTriggerState = ("00","00") # send ["01",xx] for on, anything else for off
+        self.batterySessionStart = time.time()
         self.ignState = 0
         self.trgState = 0
         self.lastTxTime = 0
@@ -273,13 +274,15 @@ class bleBot():
         # First byte is the command; the rest is the actual payload.
         rcvCmd = ord(data[0])
         data = data[1:]
+
+        curTime = time.time()
         
         if rcvCmd == self.RETURN_MSG_STRING:
             # For strings, print the complete string if there's a null termination,
             self.curReceiveString = self.curReceiveString + data
             if (string.find(data, "\x00") != -1):
                 if DEBUG_RX:
-                    print "{:s} {:f} rcv> {:s}".format(self.ble_adr, time.time(), self.curReceiveString)
+                    print "{:s} {:f} rcv> {:s}".format(self.ble_adr, curTime, self.curReceiveString)
                 self.curReceiveString = ""
         elif rcvCmd == self.RETURN_MSG_UPDATE:
             # The update message starts with a 4 byte RSSI integer and then a 4 byte temperature float.
@@ -291,7 +294,7 @@ class bleBot():
                 j = self.gui.axisNoMap[i]
                 self.lastFault[j] = ord(data[8+i])
                 if (self.lastFault[j] != 0):
-                    self.lastFaultTime[j] = time.time()
+                    self.lastFaultTime[j] = curTime
             self.gui.updateFaults()
 
             # two bytes: igniter, trigger
@@ -329,23 +332,29 @@ class bleBot():
             # Match the voltage reading color to the report of low voltage.
             if (self.returnStatus & 0x01):
                 if (self.gui.voltageLabel.style.background != RED):
+                    if DEBUG_VOLTAGE:
+                        sessionLen = int(curTime - self.batterySessionStart)
+                        print "{:s} transitioned to LOW VOLTAGE mode ({:f}) - {:02d}m:{:02d}s session".format(self.ble_adr, self.batteryVoltage, int(sessionLen / 60), sessionLen % 60)
                     self.gui.voltageOverrideButton.disabled = False
                     self.gui.voltageLabel.style.background = RED;
-                    if DEBUG_VOLTAGE:
-                        print "{:s} transitioned to LOW VOLTAGE mode ({:f})".format(self.ble_adr, self.batteryVoltage)
-
+                        
             elif (self.batteryVoltage < 3.0):
                 if (self.gui.voltageLabel.style.background != YELLOW):
+                    if DEBUG_VOLTAGE:
+                        if self.gui.voltageLabel.style.background == RED:
+                            self.batterySessionStart = curTime
+                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:f})".format(self.ble_adr, self.batteryVoltage)
                     self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = YELLOW;
-                    if DEBUG_VOLTAGE:
-                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:f})".format(self.ble_adr, self.batteryVoltage)
+
             else:
                 if (self.gui.voltageLabel.style.background != GREEN):
+                    if DEBUG_VOLTAGE:
+                        if self.gui.voltageLabel.style.background == RED:
+                            self.batterySessionStart = curTime
+                        print "{:s} voltage mode returned to NORMAL ({:f})".format(self.ble_adr, self.batteryVoltage)
                     self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = GREEN;
-                    if DEBUG_VOLTAGE:
-                        print "{:s} voltage mode returned to NORMAL ({:f})".format(self.ble_adr, self.batteryVoltage)
                 
             # Give us debug info.
             if DEBUG_UPDATE:
