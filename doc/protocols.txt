@@ -1,0 +1,68 @@
+This is some very simple documentation just for us to a have a single
+place to keep track of the protocols we're using.  I bet there are 100
+more consistent and common ways to express this info, which would be
+nice to convert to, but I wrote this quick and dirty for now.
+
+In general, everything is in 0-padded hex.
+
+"01" means the byte 0x01.
+".." means the byte is currently ignored.
+"xx" means variable x, which will be explained by the accompanying text.
+
+
+***********************
+*** Client -> Blimp ***
+***********************
+
+Each message currently begins with two bytes.
+vvcc:
+  v = Protocol version.
+    This is theoretically updated any time a message changes that will
+    cause bad behavior if received by old rfduino code.  In practice
+    we don't really use it and should probably remove it.
+  c = Packet count.
+    This is ff for a new connection and then counts up, skipping ff in
+    the future.  This should probably be removed, as it appears BLE
+    handles connection loss and packet ordering plenty well for us.
+
+These two bytes are followed by one or more 3-byte messages according
+to the below formats.  We may want to make the messages
+variable-length and merge some of the status bits to stop wasting
+space.  You can transmit as many 3-byte messages as you want and can
+fit in a 20-byte BLE packet.
+
+00ddss: Motor 0 setting.
+  d = direction (00 = stop, 01 = forward, 02 = back)
+  s = speed (00..3f)
+01ddss: Motor 1 setting; see motor 0.
+02ddss: Motor 2 setting; see motor 0.
+03..xx: Set Trigger State (x: 00 = off, 01 = on)
+04....: Reset
+05xx..: Low Voltage Override (x: 00 = off; 01 = on)
+
+
+***********************
+*** Blimp -> Client ***
+***********************
+
+Message length depends on content.
+
+00zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz: String Debug Message
+  z =
+    Null-terminated string for display to user. Pnly the last segment
+    will be null-terminated; if the string is longer than 18
+    characters, multiple messages will be sent.
+
+01rrrrrrrrttttttttaabbcciittffvvvv: Update
+  r = RSSI (4-byte signed integer)
+  t = Temperature (4-byte float)
+  a, b, c =
+    Faults collected since last update on motors 0, 1, and 2.  See
+    motor controller documentation for fault bits.
+  i = igniter state (00 = off, 01 = on)
+  t = blimp trigger state (00 = off, 01 = on)
+  f = flags bitfield (currently 01 is low voltage mode)
+  v = current voltage (2-byte unsigned integer)
+
+02mmvv: Fault on motor m with fault bitfield vv.
+  See motor controller documentation for fault bits.
