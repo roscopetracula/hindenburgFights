@@ -551,7 +551,8 @@ void updateMotorFaults(unsigned long now) {
       if(elapsed > MOTOR_FAULT_MODE_RESET_MILLIS) {
         // time to reset this motor and take it out of coast
         motorFaultModeStart[motorNum] = TIME_NEVER;
-        setBrake(motorIndexes[motorNum]);
+        // Stop the motor until the next message.
+        setBrake(motorNum);
       } 
     }
   }
@@ -578,7 +579,7 @@ void loop()
     updateLeds(loopMillis);
   }
 
-  if(!voltageIsLow) {
+  if(!voltageIsLow && isConnected) {
     // Process any motor updates.
     processAllMotorUpdates();
 
@@ -737,7 +738,7 @@ inline byte motorNumFromIndex(byte motorIndex) {
   return -1;
 }
 
-void processMotorUpdate(byte motorNum, byte motorIndex, uint8_t value, uint8_t speed) {
+void processMotorUpdate(byte motorNum, uint8_t value, uint8_t speed) {
   // If the value has not changed, simply return.
   if (curMotorStates[motorNum][0] == value &&
       curMotorStates[motorNum][1] == speed)
@@ -745,14 +746,12 @@ void processMotorUpdate(byte motorNum, byte motorIndex, uint8_t value, uint8_t s
 
   // Otherwise, update the motor setting and store the new values.
   if (value == 0x01) {
-    setForward(motorIndex, speed);
+    setForward(motorNum, speed);
   } else if (value == 0x02) {
-    setReverse(motorIndex, speed);
+    setReverse(motorNum, speed);
   } else {
-    setBrake(motorIndex);
+    setBrake(motorNum);
   }
-  curMotorStates[motorNum][0] = value;
-  curMotorStates[motorNum][1] = speed;
 }
 
 // Try to update all motor states.  State differencing is done in processMotorUpdate.
@@ -763,7 +762,7 @@ void processAllMotorUpdates(void) {
       // there is a fault right now. motor should be in coast.
     } else
 #endif
-    processMotorUpdate(i, motorIndexes[i], nextMotorStates[i][0], nextMotorStates[i][1]);
+    processMotorUpdate(i, nextMotorStates[i][0], nextMotorStates[i][1]);
   }
 }
 
@@ -896,7 +895,7 @@ void updateBlimpTrigger(byte triggerCode) {
   }
 }
 
-void sendMessage(byte motor, uint8_t value, char *msg) {
+void sendMotorMessage(byte motor, uint8_t value, char *msg) {
   Wire.beginTransmission(motor);
   Wire.write(CONTROL);
   Wire.write(value);
@@ -906,22 +905,29 @@ void sendMessage(byte motor, uint8_t value, char *msg) {
 
 void setCoast(byte thisMotor) {
   int value = (V_SET << 2) | 0x00;
-  sendMessage(thisMotor, value, "coast");
+  sendMotorMessage(thisMotor, value, "coast");
+  // Note that motor state is currently undefined here.  We could make it 0x03.
 }
 
 void setForward(byte thisMotor, int speed) {
   int value = (speed << 2) | 0x01;
-  sendMessage(thisMotor, value, "forward");
+  sendMotorMessage(motorIndexes[thisMotor], value, "forward");
+  nextMotorStates[thisMotor][0] = curMotorStates[thisMotor][0] = 0x01;
+  nextMotorStates[thisMotor][1] = curMotorStates[thisMotor][1] = speed;
 }
 
 void setReverse(byte thisMotor, int speed) {
   int value = (speed << 2) | 0x02;
-  sendMessage(thisMotor, value, "reverse");
+  sendMotorMessage(motorIndexes[thisMotor], value, "reverse");
+  nextMotorStates[thisMotor][0] = curMotorStates[thisMotor][0] = 0x02;
+  nextMotorStates[thisMotor][1] = curMotorStates[thisMotor][1] = speed;
 }
 
 void setBrake(byte thisMotor) {
   int value = (V_SET << 2) | 0x03;
-  sendMessage(thisMotor, value, "brake");
+  sendMotorMessage(motorIndexes[thisMotor], value, "brake");
+  nextMotorStates[thisMotor][0] = curMotorStates[thisMotor][0] = 0x00;
+  nextMotorStates[thisMotor][1] = curMotorStates[thisMotor][1] = 0;
 }
 
 uint8_t getFault(int thisMotor, int motorNum, bool shouldClearFault) {
@@ -998,9 +1004,9 @@ void clearAllFaults() {
 void initDevices(void) {
   // Make sure motors and igniter are off.
   setIgniter(0);
-  setBrake(MOTOR1);
-  setBrake(MOTOR2);
-  setBrake(MOTOR3);
+  setBrake(0);
+  setBrake(1);
+  setBrake(2);
 }
 
 void resetState(void) {
@@ -1025,18 +1031,18 @@ void testMotors(uint8_t velocity, int interval)
   clearAllFaults();
   delay(25);
 
-  setForward(MOTOR1, velocity);
+  setForward(0, velocity);
   delay(interval);
-  setBrake(MOTOR1);
-  delay(interval);
-
-  setForward(MOTOR2, velocity);
-  delay(interval);
-  setBrake(MOTOR2);
+  setBrake(0);
   delay(interval);
 
-  setForward(MOTOR3, velocity);
+  setForward(1, velocity);
   delay(interval);
-  setBrake(MOTOR3);
+  setBrake(1);
+  delay(interval);
+
+  setForward(2, velocity);
+  delay(interval);
+  setBrake(2);
   delay(interval);
 }
