@@ -6,10 +6,6 @@ from pygame.locals import *
 
 CONTROLLERS = None
 
-IGNITER_BIT = 0x08
-LEFT_TRIGGER_BIT = 0x04
-RIGHT_TRIGGER_BIT = 0x20
-
 def load_config():
     global CONTROLLERS
     if not CONTROLLERS:
@@ -113,23 +109,23 @@ class KeyboardController(Controller):
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
 
-        triggerStates = self.bleBlimp.getTriggerState()
+        blimpFlags = self.bleBlimp.getBlimpFlags()
 
         if keyAction == "i":
             if evt.type==KEYUP:
-                triggerStates = triggerStates & (0xff ^ IGNITER_BIT)
+                blimpFlags = blimpFlags & (0xff ^ FLAGS_IGNITER_BIT)
             else:
-                triggerStates = triggerStates | IGNITER_BIT
+                blimpFlags = blimpFlags | FLAGS_IGNITER_BIT
         elif keyAction == "red":
             if evt.type==KEYUP:
-                triggerStates = triggerStates & (0xff ^ RIGHT_TRIGGER_BIT)
+                blimpFlags = blimpFlags & (0xff ^ FLAGS_RIGHT_TRIGGER_BIT)
             else:
-                triggerStates = triggerStates | RIGHT_TRIGGER_BIT
+                blimpFlags = blimpFlags | FLAGS_RIGHT_TRIGGER_BIT
         elif keyAction == "green":
             if evt.type==KEYUP:
-                triggerStates = triggerStates & (0xff ^ LEFT_TRIGGER_BIT)
+                blimpFlags = blimpFlags & (0xff ^ FLAGS_LEFT_TRIGGER_BIT)
             else:
-                triggerStates = triggerStates | LEFT_TRIGGER_BIT
+                blimpFlags = blimpFlags | FLAGS_LEFT_TRIGGER_BIT
 
         else:
             if keyAction == "f":
@@ -160,7 +156,7 @@ class KeyboardController(Controller):
                     motorDirection = "02"
                 self.bleBlimp.setMotorState(motorIndex, motorDirection, numToMotorCode(1))
 
-	self.bleBlimp.setTriggerState(triggerStates)
+	self.bleBlimp.setBlimpFlags(blimpFlags)
         self.bleBlimp.autoTxUpdate()
 
 
@@ -198,22 +194,24 @@ class XboxController(Controller):
                 motorSpeed = "00"
             nowAxisState[axis[1][0]]=motorSpeed
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
-        
-	triggerStates = 0
+
+        # Start with current flags with the joystick bits turned off.
+        blimpFlags = self.bleBlimp.getBlimpFlags() & (0xff ^ (FLAGS_IGNITER_BIT | FLAGS_LEFT_TRIGGER_BIT | FLAGS_RIGHT_TRIGGER_BIT))
+
         if self.joystick.get_button( self.igniterButton):
-            triggerStates = triggerStates | IGNITER_BIT
+            blimpFlags = blimpFlags | FLAGS_IGNITER_BIT
 
 	if self.joystick.get_axis( self.leftTriggerAxis) > 0:
-            triggerStates = triggerStates | LEFT_TRIGGER_BIT
+            blimpFlags = blimpFlags | FLAGS_LEFT_TRIGGER_BIT
 
 	if self.joystick.get_axis( self.rightTriggerAxis) > 0:
-            triggerStates = triggerStates | RIGHT_TRIGGER_BIT
+            blimpFlags = blimpFlags | FLAGS_RIGHT_TRIGGER_BIT
 
- 	hexStr = hex(triggerStates)[-2:]
+ 	hexStr = hex(blimpFlags)[-2:]
         hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
         nowAxisState[3] = hexStr
 
-        self.bleBlimp.setTriggerState(triggerStates)
+        self.bleBlimp.setBlimpFlags(blimpFlags)
 
         if nowAxisState != self.axisState:
             self.axisState = nowAxisState

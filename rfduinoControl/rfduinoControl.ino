@@ -88,7 +88,7 @@
 #define CTRL_BIT_LEFT_TRIGGER    0x04
 #define CTRL_BIT_RIGHT_TRIGGER   0x20
 #define CTRL_BIT_IGNITER         0x08
-#define CTRL_BIT_SUPRESS_IGNITER 0x01
+#define CTRL_BIT_LOCK_IGNITER    0x01
 
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -96,8 +96,7 @@ byte nextMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte faultCollectors[3] = {0, 0, 0};
 byte igniterStateByte = 0;
 byte blimpTriggerState = 0;
-byte curControllerTriggerState = 0;
-byte nextControllerTriggerState = 0;
+byte curControlFlags = CTRL_BIT_LOCK_IGNITER;
 byte expectedMsgCounter = 0xff;
 igniterStateEnum igniterState = IGNITER_STATE_LOCKED;
 int curRSSI = 0;
@@ -423,14 +422,14 @@ void updateLeds(unsigned long curTime) {
     setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
     setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
 
-  } else if (isConnected && !voltageIsLow &&  0 != (curControllerTriggerState & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
+  } else if (isConnected && !voltageIsLow &&  0 != (curControlFlags & (CTRL_BIT_LEFT_TRIGGER | CTRL_BIT_RIGHT_TRIGGER))) {
     // alternate lighting when user pulls xbox trigger (help identify blimp)
-    if (curControllerTriggerState & CTRL_BIT_LEFT_TRIGGER) {
+    if (curControlFlags & CTRL_BIT_LEFT_TRIGGER) {
       setExpanderOutput(EXP_PIN_LED_GREEN, LED_ON);
     } else {
       setExpanderOutput(EXP_PIN_LED_GREEN, LED_OFF);
     }
-    if (curControllerTriggerState & CTRL_BIT_RIGHT_TRIGGER) {
+    if (curControlFlags & CTRL_BIT_RIGHT_TRIGGER) {
       setExpanderOutput(EXP_PIN_LED_RED, LED_ON);
     } else {
       setExpanderOutput(EXP_PIN_LED_RED, LED_OFF);
@@ -586,7 +585,6 @@ void loop()
 
     // Check if the triggers have changed state, then check if the Igniter needs to be turned on or off.
     updateBlimpTrigger(digitalRead(TRIGGER_PIN) == HIGH ? 0x01 : 0x00);
-    updateControllerTrigger(nextControllerTriggerState);
     updateIgniterState();
   }
 
@@ -711,7 +709,7 @@ void RFduinoBLE_onReceive(char *data, int len) {
       nextMotorStates[data[cmdStart + 0]][0] = data[cmdStart + 1];
       nextMotorStates[data[cmdStart + 0]][1] = data[cmdStart + 2];
     } else if (data[cmdStart + 0] == 0x03) {
-      nextControllerTriggerState = data[cmdStart + 2];
+      curControlFlags = data[cmdStart + 2];
     } else if (data[cmdStart + 0] == 0x04) {
       RFduino_systemReset();
     } else if (data[cmdStart + 0] == 0x05) {
@@ -802,7 +800,7 @@ void updateIgniterState(void) {
   bool igniterTriggered = blimpTriggerState || triggerInterruptCalled;
 
 #ifdef REMOTE_IGNITER
-  igniterTriggered = igniterTriggered || (0 != (nextControllerTriggerState & CTRL_BIT_IGNITER));
+  igniterTriggered = igniterTriggered || (curControlFlags & CTRL_BIT_IGNITER);
 #endif
   // Reset the interrupt, regardless of whether it triggered or not.
   // In theory a new trigger can happen before this clears it, but that
@@ -810,17 +808,18 @@ void updateIgniterState(void) {
   // active trigger.
   triggerInterruptCalled = false;
 
-  if (!isConnected && igniterState != IGNITER_STATE_LOCKED) {
-    DBGPRINTLN("we're disconnected, locking the igniter");
+  if ((!isConnected || (curControlFlags & CTRL_BIT_LOCK_IGNITER)) && igniterState != IGNITER_STATE_LOCKED) {
+    DBGPRINTF("isConnected: %d, igniterLock: %d, locking the igniter\n", isConnected, curControlFlags & CTRL_BIT_LOCK_IGNITER);
     igniterState = IGNITER_STATE_LOCKED;
   }
 
   switch (igniterState) {
     case IGNITER_STATE_LOCKED:
-      if (isConnected) {
-        // We're connected, unlock the igniter.
+      if (isConnected && !(curControlFlags & CTRL_BIT_LOCK_IGNITER)) {
+        // We're connected and enabled, unlock the igniter.
+        DBGPRINTLN("igniter unlocked");
         igniterState = IGNITER_STATE_OFF;
-      } else if (igniterState) {
+      } else if (igniterStateByte) {
         // We're locked but the igniter is on, turn it off.
         DBGPRINTLN("igniter is locked but on, turning it off");
         setIgniter(0x00);
@@ -878,13 +877,6 @@ void updateIgniterState(void) {
     default:
       DBGPRINTF("*** UNKNOWN IGNITER STATE: %d\n", igniterState);
       break;
-  }
-}
-
-void updateControllerTrigger(byte triggerCode) {
-  if (triggerCode != curControllerTriggerState) {
-    curControllerTriggerState = triggerCode;
-    DBGPRINTF("controller trigger state change: 0x%x\n", (int)triggerCode);
   }
 }
 
@@ -1017,7 +1009,7 @@ void resetState(void) {
       curMotorStates[i][i] = 0;
   }
   blimpTriggerState = 0;
-  curControllerTriggerState = 0;
+  curControlFlags = CTRL_BIT_LOCK_IGNITER;
   expectedMsgCounter = 0xff;
 }
 

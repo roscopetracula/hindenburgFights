@@ -51,6 +51,19 @@ def doResetAll(value = None):
 def doRestart():
     os.execvp(sys.argv[0], sys.argv)
 
+def doIgniterLock(value = None):
+    # This currently sets each individual blimp.  This doesn't make a
+    # lot of sense, but it's the quick-and-dirty solution given that
+    # we have no real global settings right now.    
+    if guiIgniterLockButtonLabel.value == "Unlock Igniters":
+        guiIgniterLockButtonLabel.set_text("Lock Igniters")
+        for controller in controllers:
+            controller.bleBlimp.setIgniterLock(False)
+    else:
+        guiIgniterLockButtonLabel.set_text("Unlock Igniters")
+        for controller in controllers:
+            controller.bleBlimp.setIgniterLock(True)
+
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a ull device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
@@ -166,11 +179,16 @@ guiResetAllButton=gui.Button("Reset All")
 guiResetAllButton.connect(gui.CLICK, doResetAll, None)
 guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None)
+guiIgniterLockButtonLabel = gui.Label("Unlock Igniters")
+guiIgniterLockButton = gui.Button(guiIgniterLockButtonLabel)
+guiIgniterLockButton.connect(gui.CLICK, doIgniterLock, None)
 guiAppButtonsTable.td(guiDisableAllButton)
 guiAppButtonsTable.td(guiEnableAllButton)
 guiAppButtonsTable.tr()
 guiAppButtonsTable.td(guiResetAllButton)
 guiAppButtonsTable.td(guiQuitButton)
+guiAppButtonsTable.tr()
+guiAppButtonsTable.td(guiIgniterLockButton)
 if (numControllers == 1):
     guiAppTable.tr()
 guiAppTable.td(guiAppButtonsTable, style={'border':3})

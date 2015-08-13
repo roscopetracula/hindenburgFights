@@ -25,8 +25,8 @@ DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
 # GUI Constants
 BLIMP_OUTER_BORDER=O=3
 BLIMP_INNER_BORDER=I=1
-QW=40
-BLIMP_AXIS_WIDTH=QW*3
+BLIMP_AXIS_COL_WIDTH=40
+BLIMP_AXIS_WIDTH=BLIMP_AXIS_COL_WIDTH*3
 BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*1.5
 BLIMP_AXIS_SLIDER_HEIGHT=100
 
@@ -82,7 +82,6 @@ class bleBotGui():
         self.frame.tr()
 
         # Add the yaw frame under the throttle/pitch frames.
-        #!!!
         self.frame.td(self.axisLabels[2], style=makeBorder(O, O, I, 0), colspan=6)
         self.frame.tr()
         self.frame.td(self.axisSliders[2], style=makeBorder(O, O, 0, 0), colspan=6)
@@ -217,12 +216,14 @@ class bleBot():
             self.connectionState = self.WAITING
         else:
             self.connectionState = self.DISABLED
+        self.immediateUpdate = True # Update blimp soon as possible.
+        self.igniterLocked = True   # Default to igniter locked.
         self.curRSSI = "?"
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
-        self.triggerState = 0 # 1st is 00, 2nd is bits for trigger/button states
-        self.lastTxTriggerState = 0 # send ["01",xx] for on, anything else for off
+        self.blimpFlags = FLAGS_LOCK_IGNITER_BIT  # Flags for triggers and igniter lock.
+        self.lastTxBlimpFlags = self.blimpFlags   # 
         self.batterySessionStart = time.time()
         self.ignState = 0
         self.trgState = 0
@@ -552,9 +553,9 @@ class bleBot():
             self.lastTxState[i] = self.motorState[i] 
             tmpMsg += "0"+str(i)+"".join(self.motorState[i])
 
-        self.lastTxTriggerState = self.triggerState
+        self.lastTxBlimpFlags = self.blimpFlags
 
-        tmpMsg += "0300{:02x}".format(self.triggerState)
+        tmpMsg += "0300{:02x}".format(self.blimpFlags)
         self.lastTxTime = time.time()
         self.sendMessage(tmpMsg)
 
@@ -576,24 +577,30 @@ class bleBot():
             if self.lastTxState[i] != self.motorState[i]:
                 self.lastTxState[i] = self.motorState[i]
                 changeFound = True
-        if self.triggerState != self.lastTxTriggerState:
+        if self.blimpFlags != self.lastTxBlimpFlags:
             # Note that interim igniter states can be lost. If we ever
             # return to manual triggering, we should make sure to keep
             # track of interim triggers in a separte variable.
-            self.lastTxTriggerState = self.triggerState
+            self.lastTxBlimpFlags = self.blimpFlags
             changeFound = True
 
         # If anything changed, retransmit.
         if changeFound: 
             self.txState()
-            
+
+    def setIgniterLock(self, newLockState):
+        if newLockState:
+            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_IGNITER_BIT
+        else:
+            self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
+        
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
         
-    def setTriggerState(self, newTriggerState):
-        self.triggerState = newTriggerState
+    def setBlimpFlags(self, newBlimpFlags):
+        self.blimpFlags = newBlimpFlags
 
-    def getTriggerState(self):
-        return self.triggerState
+    def getBlimpFlags(self):
+        return self.blimpFlags
 
