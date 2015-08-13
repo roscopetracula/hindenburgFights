@@ -36,7 +36,12 @@ fit in a 20-byte BLE packet.
   s = speed (00..3f)
 01ddss: Motor 1 setting; see motor 0.
 02ddss: Motor 2 setting; see motor 0.
-03..xx: Set Trigger State (x: 00 = off, 01 = on)
+03..xx: Set status byte/bitfield.
+  Bits: ..R.IL.X
+  R = Right Trigger
+  I = Igniter Button
+  L = Left Trigger
+  X = Igniter Lock
 04....: Reset
 05xx..: Low Voltage Override (x: 00 = off; 01 = on)
 
