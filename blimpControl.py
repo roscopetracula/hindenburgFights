@@ -188,7 +188,7 @@ guiAppButtonsTable.tr()
 guiAppButtonsTable.td(guiResetAllButton)
 guiAppButtonsTable.td(guiQuitButton)
 guiAppButtonsTable.tr()
-guiAppButtonsTable.td(guiIgniterLockButton)
+guiAppButtonsTable.td(guiIgniterLockButton, colspan=2)
 if (numControllers == 1):
     guiAppTable.tr()
 guiAppTable.td(guiAppButtonsTable, style={'border':3})
@@ -349,5 +349,4 @@ while True:
         lastDisplayUpdateTime = loopTime
         rects = guiApp.update()
         pygame.display.update(rects)
-
 
