@@ -25,7 +25,7 @@ DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
 # GUI Constants
 BLIMP_OUTER_BORDER=O=3
 BLIMP_INNER_BORDER=I=1
-BLIMP_AXIS_COL_WIDTH=40
+BLIMP_AXIS_COL_WIDTH=45
 BLIMP_AXIS_WIDTH=BLIMP_AXIS_COL_WIDTH*3
 BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*1.5
 BLIMP_AXIS_SLIDER_HEIGHT=100
@@ -557,6 +557,7 @@ class bleBot():
 
         tmpMsg += "0300{:02x}".format(self.blimpFlags)
         self.lastTxTime = time.time()
+        self.immediateUpdate = False
         self.sendMessage(tmpMsg)
 
     # Send a full state update when necessary (time out, new data, etc).
@@ -564,13 +565,14 @@ class bleBot():
         curTime = time.time()
         
         # Don't send anything if not enough time has passed.
-        if (curTime < self.lastTxTime + MIN_TRANSMIT_INTERVAL):
+        if ((not self.immediateUpdate) and (curTime < self.lastTxTime + MIN_TRANSMIT_INTERVAL)):
             return
 
-        # If we've timed out, always retransmit.
-        if (curTime > self.lastTxTime + TRANSMISSION_TIMEOUT):
+        # If we've timed out or are forcing an update, always retransmit.
+        if (self.immediateUpdate or (curTime > self.lastTxTime + TRANSMISSION_TIMEOUT)):
             self.txState()
-            
+            return
+        
         # Transmit everything if anything has changed.
         changeFound = False
         for i in range(3):
@@ -593,6 +595,7 @@ class bleBot():
             self.blimpFlags = self.blimpFlags | FLAGS_LOCK_IGNITER_BIT
         else:
             self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
+        self.immediateUpdate = True
         
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
