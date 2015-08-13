@@ -23,16 +23,25 @@ DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
 
 # GUI Constants
-BLIMP_OUTER_BORDER=3
-BLIMP_INNER_BORDER=1
-BLIMP_AXIS_WIDTH=120
-BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*0.9
+BLIMP_OUTER_BORDER=O=3
+BLIMP_INNER_BORDER=I=1
+QW=40
+BLIMP_AXIS_WIDTH=QW*3
+BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*1.5
 BLIMP_AXIS_SLIDER_HEIGHT=100
 
+# Build a border dictionary quickly.
+def makeBorder( l, r, t, b ):
+    borders = {}
+    for n in (l, "border_left"), (r, "border_right"), (t, "border_top"), (b, "border_bottom"):
+        if n[0] != 0:
+            borders[n[1]] = n[0]
+    return borders
+    
 class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
-
+    
     def __init__( self, ble_bot, type ):
         # Set up the frame (table) representing this bot's controls.
         self.bot = ble_bot
@@ -43,28 +52,43 @@ class bleBotGui():
 
         # Add the heading.
         self.frame.tr()
-        if (type == XBOX):
+
+        if type == XBOX:
             typename = "xbox"
-        else:
+        elif type == KEYBOARD:
             typename = "kbd"
-        self.frame.td(gui.Label("{:s} ({:s}/{:s})".format(self.bot.name, self.bot.ble_adr, typename)), colspan=6, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER, 'border_top':BLIMP_OUTER_BORDER, 'border_bottom':BLIMP_INNER_BORDER})
+        else:
+            typename = "UNKNOWN"
+        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
+        self.frame.tr()
+        self.frame.td(gui.Label("{:s}/{:s}".format(self.bot.ble_adr, typename)), colspan=6, style=makeBorder(O, O, 0, I))
     
         # Build the table of axes, including sliders and faults.
-        self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw"), gui.Label("Igniter")]
-        self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.HSlider(value=0, min=-63, max=63, size=1, width=BLIMP_AXIS_SLIDER_WIDTH), gui.Label("Temp")]
-        self.axisBorders = [{'border_right':BLIMP_INNER_BORDER, 'border_left':BLIMP_OUTER_BORDER}, {'border_right':BLIMP_INNER_BORDER}, {'border_right':BLIMP_OUTER_BORDER}, {}]
-        self.axisFaultLabel = [gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN)]
+        self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw")]
+        self.axisSliders = [gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.VSlider(value=0, min=-63, max=63, size=1, height=BLIMP_AXIS_SLIDER_HEIGHT), gui.HSlider(value=0, min=-63, max=63, size=1, width=BLIMP_AXIS_SLIDER_WIDTH)]
+        self.axisBorders = [makeBorder(O, I, 0, 0), makeBorder(0, O, 0, 0)]
+        self.axisFaultLabel = [gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN), gui.Label("No Fault", background=GREEN)]
+
         # Note that we're currently ignoring the igniter box.
         self.frame.tr()
-        for i in range(0, 3):         
-            self.frame.td(self.axisLabels[i], style=self.axisBorders[i], colspan=2, width=BLIMP_AXIS_WIDTH)
+        for i in range(0, 2):         
+            self.frame.td(self.axisLabels[i], style=self.axisBorders[i], colspan=3, width=BLIMP_AXIS_WIDTH)
         self.frame.tr()
-        for i in range(0, 3): 
-            self.frame.td(self.axisSliders[i], style=self.axisBorders[i], colspan=2)
+        for i in range(0, 2): 
+            self.frame.td(self.axisSliders[i], style=self.axisBorders[i], colspan=3)
         self.frame.tr()
-        for i in range(0, 3): 
-            self.frame.td(self.axisFaultLabel[i], style=self.axisBorders[i], colspan=2)
+        for i in range(0, 2): 
+            self.frame.td(self.axisFaultLabel[i], style=self.axisBorders[i], colspan=3)
+        self.frame.tr()
 
+        # Add the yaw frame under the throttle/pitch frames.
+        #!!!
+        self.frame.td(self.axisLabels[2], style=makeBorder(O, O, I, 0), colspan=6)
+        self.frame.tr()
+        self.frame.td(self.axisSliders[2], style=makeBorder(O, O, 0, 0), colspan=6)
+        self.frame.tr()
+        self.frame.td(self.axisFaultLabel[2], style=makeBorder(O, O, 0, 0), colspan=6)
+            
         # Build the status section.
         self.rssiTempLabel = gui.Label("? / ?\xb0F")
         self.voltageLabel = gui.Label("?v", background=GREEN)
@@ -73,12 +97,7 @@ class bleBotGui():
         self.voltageOverrideButton.disabled = True
         self.trgLabel = gui.Label("trg", background=GREEN);
         self.ignLabel = gui.Label("ign", background=GREEN);
-        self.frame.tr()
-        self.frame.td(self.rssiTempLabel, style={'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER, 'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=2)
-        self.frame.td(self.voltageLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER}, colspan=1)
-        self.frame.td(self.voltageOverrideButton, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
-        self.frame.td(self.trgLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=1)
-        self.frame.td(self.ignLabel, style={'border_top':BLIMP_INNER_BORDER, 'border_bottom':BLIMP_INNER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=1)
+
         # Build the connection info and enable/disable button.
         if bleBot.DEFAULT_ENABLED:
             self.stateLabel = gui.Label("Waiting...", background=YELLOW)
@@ -93,9 +112,16 @@ class bleBotGui():
         self.resetButton.disabled = True
         self.resetButton.connect(gui.CLICK, self.doReset, None)
         self.frame.tr()
-        self.frame.td(self.stateLabel, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_left':BLIMP_OUTER_BORDER, 'border_right':BLIMP_INNER_BORDER}, colspan=2)
-        self.frame.td(self.disableButton, style={'border_bottom':BLIMP_OUTER_BORDER}, colspan=2)
-        self.frame.td(self.resetButton, style={'border_bottom':BLIMP_OUTER_BORDER, 'border_right':BLIMP_OUTER_BORDER}, colspan=2)
+        self.frame.td(self.rssiTempLabel, style=makeBorder(O, 0, I, 0), colspan=4)
+        self.frame.td(self.trgLabel, style=makeBorder(I, 0, I, 0), colspan=1)
+        self.frame.td(self.ignLabel, style=makeBorder(I, O, I, 0), colspan=1)
+        self.frame.tr()
+        self.frame.td(self.stateLabel, style=makeBorder(O, 0, I, 0), colspan=3)
+        self.frame.td(self.voltageLabel, style=makeBorder(I, 0, I, 0), colspan=2)
+        self.frame.td(self.voltageOverrideButton, style=makeBorder(0, O, I, 0), colspan=1)
+        self.frame.tr()
+        self.frame.td(self.disableButton, style=makeBorder(O, 0, I, O), colspan=3)
+        self.frame.td(self.resetButton, style=makeBorder(0, O, I, O), colspan=3)
 
         # Done!
         return

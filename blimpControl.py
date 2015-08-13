@@ -156,7 +156,7 @@ except pygame.error:
     appIcon = None
 guiAppTable.tr()
 #guiAppTable.td(gui.Image(pygame.transform.scale(appIcon, (48, 48))), colspan=1)
-guiAppTable.td(gui.Label(GAME_NAME), colspan=2*(controllersPerLine-1), style={'border':10})
+guiAppTable.td(gui.Label(GAME_NAME), colspan=2*(controllersPerLine-1), style={'border':10}, rowspan=2)
 guiAppButtonsTable = gui.Table()
 guiDisableAllButton=gui.Button("Disable All")
 guiDisableAllButton.connect(gui.CLICK, doDisableAll, None)
@@ -168,6 +168,7 @@ guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None)
 guiAppButtonsTable.td(guiDisableAllButton)
 guiAppButtonsTable.td(guiEnableAllButton)
+guiAppButtonsTable.tr()
 guiAppButtonsTable.td(guiResetAllButton)
 guiAppButtonsTable.td(guiQuitButton)
 if (numControllers == 1):
