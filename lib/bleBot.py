@@ -369,7 +369,7 @@ class bleBot():
             # Give us debug info.
             if DEBUG_UPDATE:
                 curTime = time.time()
-                print "{:s} update {:.03f}> rssi {:d}, temp {:.1f}, batt (:.2f), ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, curTime - self.lastUpdate, self.curRSSI, self.curTemp, self.batteryVoltage, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
+                print "{:s} update {:.03f}> rssi {:d}, temp {:.1f}, batt {:.2f}, ign: {:d}, trg: {:d}, faults: {:02x}/{:02x}/{:02x} {:s}/{:s}/{:s}".format(self.ble_adr, curTime - self.lastUpdate, self.curRSSI, self.curTemp, self.batteryVoltage, self.ignState, self.trgState, self.lastFault[0], self.lastFault[1], self.lastFault[2], self.decodeFaults(self.lastFault[0]), self.decodeFaults(self.lastFault[1]), self.decodeFaults(self.lastFault[2]))
                 self.lastUpdate = curTime
                 
 
