@@ -8,15 +8,9 @@ import pygame, sys
 import subprocess
 import pexpect
 import string
-
-DISPLAY_UPDATE_TIME = 0.0   # Don't update the display more than this
-                            # often (s).
-BLIMP_MISSING_TIME  = 1.0   # Time (s) without an update before a blimp is marked missing.
-GAME_NAME = "Battle Blimps" # Game name for window title(s).
-DEBUG_SCAN = False          # Debug blimp scanning.
-
 from ctypes.util import find_library
 from pygame.locals import *
+from lib.constants import *
 
 from pgu import gui
 

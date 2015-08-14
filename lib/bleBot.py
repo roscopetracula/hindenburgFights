@@ -10,25 +10,6 @@ from bluepy.bluepy import btle
 from pgu import gui
 from lib.constants import *
 
-# Flags
-DEBUG_TX = False        # Print debug messages for transmissions.
-DEBUG_RX = True         # Print debug messages for generic received
-                        # text.
-DEBUG_UPDATE = False    # Print debug messages for received updates.
-DEBUG_CONNECT = False   # Print debug messages for connections and
-                        # disconnections.
-DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
-                        # status.
-DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
-DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
-
-# GUI Constants
-BLIMP_OUTER_BORDER=O=3
-BLIMP_INNER_BORDER=I=1
-BLIMP_AXIS_COL_WIDTH=45
-BLIMP_AXIS_WIDTH=BLIMP_AXIS_COL_WIDTH*3
-BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*1.5
-BLIMP_AXIS_SLIDER_HEIGHT=100
 
 # Build a border dictionary quickly.
 def makeBorder( l, r, t, b ):

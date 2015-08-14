@@ -1,10 +1,26 @@
+# Debug Flags
+DEBUG_SCAN = False      # Debug blimp scanning.
+DEBUG_TX = False        # Print debug messages for transmissions.
+DEBUG_RX = True         # Print debug messages for generic received
+                        # text.
+DEBUG_UPDATE = False    # Print debug messages for received updates.
+DEBUG_CONNECT = False   # Print debug messages for connections and
+                        # disconnections.
+DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
+                        # status.
+DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
+DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
+
+
 # Connection Constants
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
                              # in this period (s).
-MIN_TRANSMIT_INTERVAL = 0.1 # Don't transmit more than once in this
-                            # period (s).
-MAX_CONNECT_TIME = 2.5      # Maximum time (s) to spend on a
-                            # connection attempt before timing out.
+MIN_TRANSMIT_INTERVAL = 0.1  # Don't transmit more than once in this
+                             # period (s).
+MAX_CONNECT_TIME = 2.5       # Maximum time (s) to spend on a
+                             # connection attempt before timing out.
+BLIMP_MISSING_TIME  = 1.0    # Time (s) without an update before a blimp is marked missing.
+
 
 # Controller Constants
 XBOX = 1
@@ -16,6 +32,18 @@ AXIS_2 = 2
 
 NORMAL = True
 INVERTED = False
+
+
+# GUI Constants
+DISPLAY_UPDATE_TIME = 0.0   # Don't update the display more than this
+                            # often (s).
+GAME_NAME = "Battle Blimps" # Game name for window title(s).
+BLIMP_OUTER_BORDER=O=3
+BLIMP_INNER_BORDER=I=1
+BLIMP_AXIS_COL_WIDTH=45
+BLIMP_AXIS_WIDTH=BLIMP_AXIS_COL_WIDTH*3
+BLIMP_AXIS_SLIDER_WIDTH=BLIMP_AXIS_WIDTH*1.5
+BLIMP_AXIS_SLIDER_HEIGHT=100
 
 
 # Color Constants
