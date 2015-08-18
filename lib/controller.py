@@ -7,33 +7,42 @@ from pygame.locals import *
 CONTROLLERS = None
 
 def load_config():
-    global CONTROLLERS
+    global CONTROLLERS, ADMIN_CONTROLLER
     if not CONTROLLERS:
         try:
             # Import the configuration by hand to allow for changing it.
             i = imp.load_source("CONTROLLERS", Controller.CONFIG_FILE)
             CONTROLLERS = i.CONTROLLERS
+            try:
+                ADMIN_CONTROLLER = i.ADMIN_CONTROLLER
+            except:
+                ADMIN_CONTROLLER = None
         except:
             print "unable to load config file \"{:s}\"".format(Controller.CONFIG_FILE)
             raise
     
-def load_controllers():
+def load_controllers(doGrabBlimp):
     load_config()
     return [
-        create_controller(controller_config)
+        create_controller(controller_config, doGrabBlimp)
         for controller_config in CONTROLLERS
     ]
 
 def has_xbox_controller():
     load_config()
+
     for controller_config in CONTROLLERS:
         if controller_config['type'] == XBOX:
             return True
+    
+    if ADMIN_CONTROLLER and ADMIN_CONTROLLER['type'] == XBOX:
+        return True
+
     return False
 
-def create_controller(cfg):
-    ble_control = bleBot(cfg['name'], cfg['uuid'], cfg['type'])
-
+def create_controller(cfg, doGrabBlimp):
+    ble_control = bleBot(cfg['name'], cfg['uuid'], cfg['type'], doGrabBlimp)
+    
     if cfg['type'] == KEYBOARD:
         controller = KeyboardController(
             ble_control,
@@ -60,8 +69,35 @@ def create_controller(cfg):
             joystick
         )
 
+    if ADMIN_CONTROLLER:
+        if ADMIN_CONTROLLER['type'] == KEYBOARD:
+            controller.adminController = KeyboardController(
+                ble_control,
+                ADMIN_CONTROLLER['orientation'],
+                ADMIN_CONTROLLER['keys']
+            )
+        else:
+            try:
+                joystick = pygame.joystick.Joystick(ADMIN_CONTROLLER['joystick'])
+            except pygame.error as e:
+                if (str(e) == "Invalid joystick device number"):
+                    print "xbox controller missing, we should create a fake joystick here"
+                    joystick = None
+                    raise
+                else:
+                    raise
+                
+            controller.adminController = XboxController(
+                ble_control,
+                ADMIN_CONTROLLER['orientation'],
+                ADMIN_CONTROLLER['leftTriggerAxis'],
+                ADMIN_CONTROLLER['rightTriggerAxis'],
+                ADMIN_CONTROLLER['igniterButton'],
+                joystick
+            )
+        controller.adminController.originalController = controller
+    
     ble_control.controller = controller
-        
     return controller
 
 class Controller(object):
@@ -69,6 +105,7 @@ class Controller(object):
 
     def __init__(self, bleBlimp):
         self.bleBlimp = bleBlimp
+        self.isAdmin = False
 
     def cleanup(self):
         self.bleBlimp.cleanup()

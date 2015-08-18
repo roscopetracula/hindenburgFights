@@ -1,15 +1,16 @@
 # Debug Flags
-DEBUG_SCAN = False      # Debug blimp scanning.
-DEBUG_TX = False        # Print debug messages for transmissions.
-DEBUG_RX = True         # Print debug messages for generic received
-                        # text.
-DEBUG_UPDATE = False    # Print debug messages for received updates.
-DEBUG_CONNECT = False   # Print debug messages for connections and
-                        # disconnections.
-DEBUG_VOLTAGE = True    # Print debug messages for blimp voltage
-                        # status.
-DEBUG_TRIGGER = False   # Print debug messages of trigger on/off.
-DEBUG_IGNITER = False   # Print debug messages of igniter on/off.
+DEBUG_SCAN = False        # Debug blimp scanning.
+DEBUG_TX = False          # Print debug messages for transmissions.
+DEBUG_RX = True           # Print debug messages for generic received
+                          # text.
+DEBUG_UPDATE = False      # Print debug messages for received updates.
+DEBUG_CONNECT = False     # Print debug messages for connections and
+                          # disconnections.
+DEBUG_VOLTAGE = True      # Print debug messages for blimp voltage
+                          # status.
+DEBUG_TRIGGER = False     # Print debug messages of trigger on/off.
+DEBUG_IGNITER = False     # Print debug messages of igniter on/off.
+DEBUG_CONTROLLERS = True  # Debug controller configurations.
 
 
 # Connection Constants

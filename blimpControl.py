@@ -58,9 +58,30 @@ def doIgniterLock(value = None):
         for controller in controllers:
             controller.bleBlimp.setIgniterLock(True)
 
+def doGrabBlimp(bleBlimp):
+    print bleBlimp
+    c = bleBlimp.controller
+    i = controllers.index(c)
+    if DEBUG_CONTROLLERS:
+        print "grab on controller #{:d}".format(i)
+    try:
+        c.adminController
+        # This is the original controller.
+        if DEBUG_CONTROLLERS:
+            print "{:s} swapping in admin controller".format(bleBlimp.ble_adr)
+        controllers[i] = c.adminController
+        bleBlimp.gui.grabButton.value.set_text("G")
+    except:
+        # This is the admin controller.
+        if DEBUG_CONTROLLERS:
+            print "{:s} swapping out admin controller".format(bleBlimp.ble_adr)
+        controllers[i] = c.originalController
+        bleBlimp.gui.grabButton.value.set_text("g")
+    bleBlimp.controller = controllers[i]
+    
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
-parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a ull device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
+parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a null device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
 group = parser.add_mutually_exclusive_group()
 group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
 group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
@@ -145,7 +166,8 @@ lastScan = {}
 # Set up controllers and calculate gui controller layout.
 if has_xbox_controller():
     pygame.joystick.init()
-controllers = load_controllers()
+controllers = load_controllers(doGrabBlimp)
+
 # Add any needed dummy controllers.
 while (len(controllers) < args.minimum_blimps):
     controllers.append(create_controller(KeyboardController.DummyKeyboardController))       

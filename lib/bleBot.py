@@ -40,7 +40,10 @@ class bleBotGui():
             typename = "kbd"
         else:
             typename = "UNKNOWN"
-        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
+        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=5, style=makeBorder(O, 0, O, 0))
+        self.grabButton = gui.Button("g")
+        self.frame.td(self.grabButton, style=makeBorder(0, O, O, 0), colspan=1)
+        self.grabButton.connect(gui.CLICK, self.doGrab, None)
         self.frame.tr()
         self.frame.td(gui.Label("{:s}/{:s}".format(self.bot.ble_adr, typename)), colspan=6, style=makeBorder(O, O, 0, I))
     
@@ -139,7 +142,10 @@ class bleBotGui():
 
     def doReset(self, value):
         self.bot.reset()
-        
+
+    def doGrab(self, value):
+        self.bot.doGrabBlimp(self.bot)            
+    
     def doVoltageOverride(self, value):
         # Note that this currently is a one-way override; you need to reset the device to
         # undo the override.
@@ -184,10 +190,11 @@ class bleBot():
     FAILED=4
     DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 
-    def __init__( self, name, ble_adr, type ):
+    def __init__( self, name, ble_adr, type, doGrabBlimp ):
 
         # Set up connection-related data.
         self.protocolversion = "01"
+        self.doGrabBlimp = doGrabBlimp
         self.controller = None
         self.ble_adr = ble_adr
         self.name = name
