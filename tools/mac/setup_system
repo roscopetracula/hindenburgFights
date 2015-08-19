@@ -1,0 +1,39 @@
+#!/bin/bash
+
+### THIS SHOULD BE RUN FROM /isodevice ###
+### IT IS CURRENTLY VERY INFLEXIBLE    ###
+
+if [ "$1" == "asroot" ]; then
+  echo Running outside chroot.
+  # apt-get -y install grub
+  mount /dev/sda2 /mnt
+  mount --bind /dev /mnt/dev
+  mount --bind /dev/pts /mnt/dev/pts
+  mount --bind /proc /mnt/proc
+  mount --bind /sys /mnt/sys
+  mount --bind /isodevice /mnt/mnt
+  cp /etc/resolv.conf /mnt/etc
+  chroot /mnt /mnt/setup_system continue
+  echo Back outside chroot.
+  umount /mnt/mnt
+  umount /mnt/sys
+  umount /mnt/proc
+  umount /mnt/dev/pts
+  umount /mnt/dev
+  umount /mnt
+elif [ "$1" == "continue" ]; then
+  echo Running inside chroot.
+  dpkg --configure -a
+  apt-get -y update
+  apt-get -y dist-upgrade
+  apt-get -y install git
+  apt-get -y autoremove
+  apt-get -y autoclean
+  grub-install /dev/sda
+  grub-install --recheck /dev/sda
+  update-grub
+else
+  echo Switching to root.
+  exec sudo $0 asroot
+fi
+
