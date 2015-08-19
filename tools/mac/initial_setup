@@ -4,7 +4,7 @@
 sudo apt-get remove pygame
 sudo apt-get update
 sudo apt-get dist-upgrade
-sudo apt-get install wget screen git emacs xboxdrv mercurial arduino
+sudo apt-get install wget screen git emacs xboxdrv mercurial arduino guake
 
 # Build bluepy.
 cd ~/hindenburgFights/bluepy/bluepy
