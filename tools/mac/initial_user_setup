@@ -16,6 +16,9 @@ wget 'https://www.arduino.cc/download_handler.php?f=/arduino-1.6.5-linux32.tar.x
 cd ~
 tar xJf ~/Downloads/arduion-1.6.5-linux32.tar.xz
 
+# Set up hcitool.
+~/hindenburgFights/tools/setup_hcitool_permissions.sh 
+
 # Set up pygame.
 cd ~
 hg clone https://bitbucket.org/pygame/pygame
