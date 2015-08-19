@@ -13,7 +13,7 @@ if [ "$1" == "asroot" ]; then
   mount --bind /sys /mnt/sys
   mount --bind /isodevice /mnt/mnt
   cp /etc/resolv.conf /mnt/etc
-  chroot /mnt /mnt/setup_system continue
+  chroot /mnt /mnt/post_install continue
   echo Back outside chroot.
   umount /mnt/mnt
   umount /mnt/sys

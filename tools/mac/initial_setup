@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Initial update and tools.
-sudo apt-get remove pygame
-sudo apt-get update
-sudo apt-get dist-upgrade
-sudo apt-get install wget screen git emacs xboxdrv mercurial arduino guake
+sudo apt-get -y remove pygame
+sudo apt-get -y update
+sudo apt-get -y dist-upgrade
+sudo apt-get -y install wget screen git emacs xboxdrv mercurial arduino guake
 
 # Build bluepy.
 cd ~/hindenburgFights/bluepy/bluepy
@@ -20,7 +20,7 @@ tar xJf ~/Downloads/arduion-1.6.5-linux32.tar.xz
 cd ~
 hg clone https://bitbucket.org/pygame/pygame
 cd ~/pygame
-sudo apt-get install python-dev python-numpy libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev libsmpeg-dev libsdl1.2-dev  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
+sudo apt-get -y install python-dev python-numpy libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-ttf2.0-dev libsmpeg-dev libsdl1.2-dev  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
 python config.py && python setup.py build && sudo python setup.py install
 
 
