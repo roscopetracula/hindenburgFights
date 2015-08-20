@@ -1,0 +1,8 @@
+"sleep .04 && xdotool click 3"
+  Mod4 + b:1
+
+#"sleep .04 && xdotool click 2"
+#  Mod4 + shift + b:1
+
+#"sleep .07 && xdotool key --clearmodifiers Delete"
+#  shift + BackSpace
