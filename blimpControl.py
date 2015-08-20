@@ -58,27 +58,65 @@ def doIgniterLock(value = None):
         for controller in controllers:
             controller.bleBlimp.setIgniterLock(True)
 
-def doGrabBlimp(bleBlimp):
-    print bleBlimp
-    c = bleBlimp.controller
-    i = controllers.index(c)
-    if DEBUG_CONTROLLERS:
-        print "grab on controller #{:d}".format(i)
-    try:
-        c.adminController
-        # This is the original controller.
+def doAppGuiCallback(cmd, bleBlimp):
+
+    if cmd == "getControllerNumber":
+        return controllers.index(bleBlimp.controller)
+    elif cmd == "grab":
+        c = bleBlimp.controller
+        i = controllers.index(c)
         if DEBUG_CONTROLLERS:
-            print "{:s} swapping in admin controller".format(bleBlimp.ble_adr)
-        controllers[i] = c.adminController
-        bleBlimp.gui.grabButton.value.set_text("G")
-    except:
-        # This is the admin controller.
+            print "grab on controller #{:d}".format(i)
+        controllers[i] = c.otherController
+        if c.isAdmin:
+            # This was the admin controller.
+            if DEBUG_CONTROLLERS:
+                print "{:s} swapping out admin controller".format(bleBlimp.ble_adr)
+            bleBlimp.gui.grabButton.value.set_text("g")
+        else:
+            # This was the original controller.
+            if DEBUG_CONTROLLERS:
+                print "{:s} swapping in admin controller".format(bleBlimp.ble_adr)
+            bleBlimp.gui.grabButton.value.set_text("G")
+
+        bleBlimp.controller = controllers[i]
+    elif cmd == "left" or cmd == "right":
+        curController = bleBlimp.controller
+        i = controllers.index(curController)
         if DEBUG_CONTROLLERS:
-            print "{:s} swapping out admin controller".format(bleBlimp.ble_adr)
-        controllers[i] = c.originalController
-        bleBlimp.gui.grabButton.value.set_text("g")
-    bleBlimp.controller = controllers[i]
-    
+            print "left on controller #{:d}".format(i)
+        if (cmd == "left" and i == 0) or (cmd == "right" and i == len(controllers) - 1):
+            if DEBUG_CONTROLLERS:
+                print "controller {:d} out of range, not moving".format(i)
+            return
+        if cmd == "left":
+            dir = -1
+        else:
+            dir = +1;
+
+        # For convenience, the original and replacement
+        # blimp/controller pairs.
+        curBlimp = curController.bleBlimp
+        otherController = controllers[i+dir]
+        otherBlimp = otherController.bleBlimp
+
+        # Swap the controllers in the array.
+        controllers[i] = otherController
+        controllers[i+dir] = curController
+
+        # Update the blimp/controller matchings.
+        curController.bleBlimp = otherBlimp
+        curController.otherController.bleBlimp = otherBlimp
+        otherBlimp.controller = curController
+        otherController.bleBlimp = curBlimp
+        otherController.otherController.bleBlimp = curBlimp
+        curBlimp.controller = otherController
+        
+        if DEBUG_CONTROLLERS:
+            print "swapped controllers {:d} and {:d}".format(i, i+dir)
+    else:
+        print "unknown app callback command {:s}".format(cmd)
+        
 parser = argparse.ArgumentParser(description='We be big blimpin.')
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a null device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
@@ -166,7 +204,7 @@ lastScan = {}
 # Set up controllers and calculate gui controller layout.
 if has_xbox_controller():
     pygame.joystick.init()
-controllers = load_controllers(doGrabBlimp)
+controllers = load_controllers(doAppGuiCallback)
 
 # Add any needed dummy controllers.
 while (len(controllers) < args.minimum_blimps):

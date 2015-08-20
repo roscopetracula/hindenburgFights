@@ -71,11 +71,12 @@ def create_controller(cfg, doGrabBlimp):
 
     if ADMIN_CONTROLLER:
         if ADMIN_CONTROLLER['type'] == KEYBOARD:
-            controller.adminController = KeyboardController(
+            controller.otherController = KeyboardController(
                 ble_control,
                 ADMIN_CONTROLLER['orientation'],
                 ADMIN_CONTROLLER['keys']
             )
+            controller.otherController.isAdmin = True
         else:
             try:
                 joystick = pygame.joystick.Joystick(ADMIN_CONTROLLER['joystick'])
@@ -87,7 +88,7 @@ def create_controller(cfg, doGrabBlimp):
                 else:
                     raise
                 
-            controller.adminController = XboxController(
+            controller.otherController = XboxController(
                 ble_control,
                 ADMIN_CONTROLLER['orientation'],
                 ADMIN_CONTROLLER['leftTriggerAxis'],
@@ -95,7 +96,10 @@ def create_controller(cfg, doGrabBlimp):
                 ADMIN_CONTROLLER['igniterButton'],
                 joystick
             )
-        controller.adminController.originalController = controller
+            controller.otherController.isAdmin = True
+
+        # Loop the admin controller back to this one.
+        controller.otherController.otherController = controller
     
     ble_control.controller = controller
     return controller
@@ -142,7 +146,8 @@ class KeyboardController(Controller):
         self.axisToMotorMap = axisToMotorMap
         self.keyMap = keyMap
         self.handledKeys = self.keyMap.values()
-
+        self.isAdmin = False
+        
     def handleEvt(self,evt):
         keyAction = [km[0] for km in self.keyMap.items() if km[1]==evt.key][0]
 

@@ -40,12 +40,20 @@ class bleBotGui():
             typename = "kbd"
         else:
             typename = "UNKNOWN"
-        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=5, style=makeBorder(O, 0, O, 0))
-        self.grabButton = gui.Button("g")
-        self.frame.td(self.grabButton, style=makeBorder(0, O, O, 0), colspan=1)
-        self.grabButton.connect(gui.CLICK, self.doGrab, None)
+        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
         self.frame.tr()
-        self.frame.td(gui.Label("{:s}/{:s}".format(self.bot.ble_adr, typename)), colspan=6, style=makeBorder(O, O, 0, I))
+        self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
+        self.frame.tr()
+        self.frame.td(gui.Label("{:s}".format(typename)), colspan=3, style=makeBorder(O, 0, 0, I))
+        self.grabButton = gui.Button("g")
+        self.controllerRemapLeftButton = gui.Button("<")
+        self.controllerRemapRightButton = gui.Button(">")
+        self.frame.td(self.controllerRemapLeftButton, style=makeBorder(0, 0, 0, I), colspan=1, width=COL_WIDTH)
+        self.frame.td(self.grabButton, style=makeBorder(0, 0, 0, I), colspan=1, width=COL_WIDTH)
+        self.frame.td(self.controllerRemapRightButton, style=makeBorder(0, O, 0, I), colspan=1, width=COL_WIDTH)
+        self.grabButton.connect(gui.CLICK, self.doGrab, None)
+        self.controllerRemapLeftButton.connect(gui.CLICK, self.doControllerLeft, None)
+        self.controllerRemapRightButton.connect(gui.CLICK, self.doControllerRight, None)
     
         # Build the table of axes, including sliders and faults.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw")]
@@ -144,7 +152,13 @@ class bleBotGui():
         self.bot.reset()
 
     def doGrab(self, value):
-        self.bot.doGrabBlimp(self.bot)            
+        self.bot.doAppGuiCallback("grab", self.bot)            
+    
+    def doControllerLeft(self, value):
+        self.bot.doAppGuiCallback("left", self.bot)            
+    
+    def doControllerRight(self, value):
+        self.bot.doAppGuiCallback("right", self.bot)            
     
     def doVoltageOverride(self, value):
         # Note that this currently is a one-way override; you need to reset the device to
@@ -190,11 +204,11 @@ class bleBot():
     FAILED=4
     DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 
-    def __init__( self, name, ble_adr, type, doGrabBlimp ):
+    def __init__( self, name, ble_adr, type, doAppGuiCallback ):
 
         # Set up connection-related data.
         self.protocolversion = "01"
-        self.doGrabBlimp = doGrabBlimp
+        self.doAppGuiCallback = doAppGuiCallback
         self.controller = None
         self.ble_adr = ble_adr
         self.name = name

@@ -31,7 +31,7 @@ ADMIN_CONTROLLER = {
     'leftTriggerAxis': 2,
     'rightTriggerAxis': 5,
     'igniterButton':3,
-    'joystick': 1,
+    'joystick': 2,
 }
 
 BLIMP1 = "D0:0A:A6:18:D5:EA"
@@ -68,7 +68,7 @@ CONTROLLERS = [
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
         'igniterButton':3,
-        'joystick': 0,
+        'joystick': 1,
     },
     {
         'type': XBOX,
