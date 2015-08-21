@@ -18,7 +18,7 @@ TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
                              # in this period (s).
 MIN_TRANSMIT_INTERVAL = 0.1  # Don't transmit more than once in this
                              # period (s).
-MAX_CONNECT_TIME = 2.5       # Maximum time (s) to spend on a
+MAX_CONNECT_TIME = 1.0       # Maximum time (s) to spend on a
                              # connection attempt before timing out.
 BLIMP_MISSING_TIME  = 1.0    # Time (s) without an update before a blimp is marked missing.
 

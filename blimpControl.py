@@ -80,6 +80,8 @@ def doAppGuiCallback(cmd, bleBlimp):
             bleBlimp.gui.grabButton.value.set_text("G")
 
         bleBlimp.controller = controllers[i]
+        bleBlimp.gui.updateControllerDisplay()
+
     elif cmd == "left" or cmd == "right":
         curController = bleBlimp.controller
         i = controllers.index(curController)
@@ -111,6 +113,10 @@ def doAppGuiCallback(cmd, bleBlimp):
         otherController.bleBlimp = curBlimp
         otherController.otherController.bleBlimp = curBlimp
         curBlimp.controller = otherController
+
+        # Update the GUI.
+        curBlimp.gui.updateControllerDisplay()
+        otherBlimp.gui.updateControllerDisplay()
         
         if DEBUG_CONTROLLERS:
             print "swapped controllers {:d} and {:d}".format(i, i+dir)

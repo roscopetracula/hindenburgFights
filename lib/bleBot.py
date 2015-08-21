@@ -22,8 +22,21 @@ def makeBorder( l, r, t, b ):
 class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
+
+    def updateControllerDisplay( self ):
+        if not self.bot.controller:
+            self.controllerLabel.set_text("DETACHED")
+            return
+        
+        if self.bot.controller.type == XBOX:
+            typename = "xbox #{:d}".format(self.bot.controller.joystick.get_id())
+        elif self.bot.controller.type == KEYBOARD:
+            typename = "kbd"
+        else:
+            typename = "UNKNOWN"
+        self.controllerLabel.set_text("{:s}{:s}".format(typename, " (G)" if self.bot.controller.isAdmin else ""))
     
-    def __init__( self, ble_bot, type ):
+    def __init__( self, ble_bot ):
         # Set up the frame (table) representing this bot's controls.
         self.bot = ble_bot
         self.frame = gui.Table()
@@ -34,17 +47,12 @@ class bleBotGui():
         # Add the heading.
         self.frame.tr()
 
-        if type == XBOX:
-            typename = "xbox"
-        elif type == KEYBOARD:
-            typename = "kbd"
-        else:
-            typename = "UNKNOWN"
         self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
         self.frame.tr()
         self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
         self.frame.tr()
-        self.frame.td(gui.Label("{:s}".format(typename)), colspan=3, style=makeBorder(O, 0, 0, I))
+        self.controllerLabel = gui.Label()
+        self.frame.td(self.controllerLabel, colspan=3, style=makeBorder(O, 0, 0, I))
         self.grabButton = gui.Button("g")
         self.controllerRemapLeftButton = gui.Button("<")
         self.controllerRemapRightButton = gui.Button(">")
@@ -204,7 +212,7 @@ class bleBot():
     FAILED=4
     DEFAULT_ENABLED = True  # Enable blimps when the program is started.
 
-    def __init__( self, name, ble_adr, type, doAppGuiCallback ):
+    def __init__( self, name, ble_adr, doAppGuiCallback ):
 
         # Set up connection-related data.
         self.protocolversion = "01"
@@ -236,7 +244,7 @@ class bleBot():
         self.lastFaultTime = [0, 0, 0]
         self.lastConnectStart = 0
         self.lastUpdate = time.time()
-        self.gui = bleBotGui(self, type)
+        self.gui = bleBotGui(self)
         return
 
     def reset(self):

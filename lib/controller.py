@@ -21,10 +21,10 @@ def load_config():
             print "unable to load config file \"{:s}\"".format(Controller.CONFIG_FILE)
             raise
     
-def load_controllers(doGrabBlimp):
+def load_controllers(doAppGuiCallback):
     load_config()
     return [
-        create_controller(controller_config, doGrabBlimp)
+        create_controller(controller_config, doAppGuiCallback)
         for controller_config in CONTROLLERS
     ]
 
@@ -40,8 +40,8 @@ def has_xbox_controller():
 
     return False
 
-def create_controller(cfg, doGrabBlimp):
-    ble_control = bleBot(cfg['name'], cfg['uuid'], cfg['type'], doGrabBlimp)
+def create_controller(cfg, doAppGuiCallback):
+    ble_control = bleBot(cfg['name'], cfg['uuid'], doAppGuiCallback)
     
     if cfg['type'] == KEYBOARD:
         controller = KeyboardController(
@@ -102,6 +102,7 @@ def create_controller(cfg, doGrabBlimp):
         controller.otherController.otherController = controller
     
     ble_control.controller = controller
+    ble_control.gui.updateControllerDisplay()
     return controller
 
 class Controller(object):
@@ -143,6 +144,7 @@ class KeyboardController(Controller):
     def __init__(self,bleBlimp,axisToMotorMap,keyMap):
         Controller.__init__(self,bleBlimp)
         # super(self, Controller).__init__(bleBlimp)
+        self.type = XBOX
         self.axisToMotorMap = axisToMotorMap
         self.keyMap = keyMap
         self.handledKeys = self.keyMap.values()
@@ -205,6 +207,7 @@ class KeyboardController(Controller):
 class XboxController(Controller):
     def __init__(self,bleBlimp,axisMap,leftTriggerAxis,rightTriggerAxis,igniterButton,joystick,deadzone=0.3):
         Controller.__init__(self,bleBlimp)
+        self.type = XBOX
         self.axisMap = axisMap
         self.joystick = joystick
         #used to track changes in state; send only upon state change.
