@@ -88,6 +88,7 @@
 #define CTRL_BIT_LEFT_TRIGGER    0x04
 #define CTRL_BIT_RIGHT_TRIGGER   0x20
 #define CTRL_BIT_IGNITER         0x08
+#define CTRL_BIT_LOCK_MOTORS     0x02
 #define CTRL_BIT_LOCK_IGNITER    0x01
 
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
@@ -96,13 +97,14 @@ byte nextMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte faultCollectors[3] = {0, 0, 0};
 byte igniterStateByte = 0;
 byte blimpTriggerState = 0;
-byte curControlFlags = CTRL_BIT_LOCK_IGNITER;
+byte curControlFlags = CTRL_BIT_LOCK_IGNITER | CTRL_BIT_LOCK_MOTORS;
 byte expectedMsgCounter = 0xff;
 igniterStateEnum igniterState = IGNITER_STATE_LOCKED;
 int curRSSI = 0;
 unsigned long lastPingMillis = 0;
 unsigned long igniterLastOn = 0;
 unsigned long igniterTriggerReleased = 0;
+bool motorsCurrentlyLocked = false;
 bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
@@ -738,6 +740,17 @@ inline byte motorNumFromIndex(byte motorIndex) {
 }
 
 void processMotorUpdate(byte motorNum, uint8_t value, uint8_t speed) {
+  // Check if motors have gone into lockdown.  If so, turn this motor off and ignure
+  // further motor updates until the flag is gone.
+  if (curControlFlags & CTRL_BIT_LOCK_MOTORS) {
+    if (curMotorStates[motorNum][0] != 0) {
+      DBGPRINTF("motor %d is on and we are in lockdown, stopping motor", motorNum);
+      setBrake(motorNum);
+    }
+    // Don't do anything further in lockdown.
+    return;
+  }
+  
   // If the value has not changed, simply return.
   if (curMotorStates[motorNum][0] == value &&
       curMotorStates[motorNum][1] == speed)
