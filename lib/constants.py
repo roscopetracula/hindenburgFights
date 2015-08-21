@@ -11,7 +11,7 @@ DEBUG_VOLTAGE = True      # Print debug messages for blimp voltage
 DEBUG_TRIGGER = False     # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False     # Print debug messages of igniter on/off.
 DEBUG_CONTROLLERS = False # Debug controller configurations.
-
+DEBUG_MODE_CHANGE = False  # Debug mode changes.
 
 # Connection Constants
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
@@ -64,4 +64,5 @@ FLAGS_IGNITER_BIT = 0x08
 FLAGS_LEFT_TRIGGER_BIT = 0x04
 FLAGS_RIGHT_TRIGGER_BIT = 0x20
 FLAGS_LOCK_IGNITER_BIT = 0x01
+FLAGS_LOCK_MOTORS_BIT = 0x02
 

@@ -45,21 +45,22 @@ def doResetAll(value = None):
 def doRestart():
     os.execvp(sys.argv[0], sys.argv)
 
-def doIgniterLock(value = None):
-    # This currently sets each individual blimp.  This doesn't make a
-    # lot of sense, but it's the quick-and-dirty solution given that
-    # we have no real global settings right now.    
-    if guiIgniterLockButtonLabel.value == "Unlock Igniters":
-        guiIgniterLockButtonLabel.set_text("Lock Igniters")
+def doModeChange(guiModeGroup):
+    if guiModeGroup.value == "Run":
         for controller in controllers:
-            controller.bleBlimp.setIgniterLock(False)
+            controller.bleBlimp.setLocks(False, False)
+    elif guiModeGroup.value == "No Fire":
+        for controller in controllers:
+            controller.bleBlimp.setLocks(True, False)
+    elif guiModeGroup.value == "Lockdown":
+        for controller in controllers:
+            controller.bleBlimp.setLocks(True, True)
     else:
-        guiIgniterLockButtonLabel.set_text("Unlock Igniters")
-        for controller in controllers:
-            controller.bleBlimp.setIgniterLock(True)
-
+        raise Exception("unknown mode change \"{:s}\"".format(guiModeGroup.value))
+    if DEBUG_MODE_CHANGE:
+        print "game mode change: {:s}".format(guiModeGroup.value)
+    
 def doAppGuiCallback(cmd, bleBlimp):
-
     if cmd == "getControllerNumber":
         return controllers.index(bleBlimp.controller)
     elif cmd == "grab":
@@ -123,12 +124,16 @@ def doAppGuiCallback(cmd, bleBlimp):
     else:
         print "unknown app callback command {:s}".format(cmd)
         
-parser = argparse.ArgumentParser(description='We be big blimpin.')
+parser = argparse.ArgumentParser(description='We be big blimpin.', formatter_class=argparse.RawDescriptionHelpFormatter, epilog="global keys:\n  q\t\tquit\n  e\t\tenable all blimps\n  d\t\tdisable all blimps\n  r\t\treset all blimps\n  x\t\texit and restart blimpControl\n  space\t\tlockdown mode")
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a null device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--default-disabled', action='store_true', help='disable all blimps at startup')
-group.add_argument('--default-enabled', action='store_true', help='enable all blimps at startup (default)')
+group.add_argument('--default-disabled', action='store_true', help='disable all blimp connections at startup')
+group.add_argument('--default-enabled', action='store_true', help='enable all blimp connections at startup (default)')
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--default-mode-lockdown', action='store_true', help='disable all motors and igniters at startup')
+group.add_argument('--default-mode-run', action='store_true', help='enable all motors and igniters at startup')
+group.add_argument('--default-mode-nofire', action='store_true', help='disable igniters only at startup (default)')
 parser.add_argument('--minimum-blimps', action='store', help='make sure we have at least N blimps, creating dummies where needed', default='0', metavar="N", type=int)
 args = parser.parse_args()
 Controller.CONFIG_FILE = args.config
@@ -239,16 +244,35 @@ guiResetAllButton=gui.Button("Reset All")
 guiResetAllButton.connect(gui.CLICK, doResetAll, None)
 guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None)
-guiIgniterLockButtonLabel = gui.Label("Unlock Igniters")
-guiIgniterLockButton = gui.Button(guiIgniterLockButtonLabel)
-guiIgniterLockButton.connect(gui.CLICK, doIgniterLock, None)
-guiAppButtonsTable.td(guiDisableAllButton)
-guiAppButtonsTable.td(guiEnableAllButton)
+guiAppButtonsTable.td(guiDisableAllButton, colspan=3)
+guiAppButtonsTable.td(guiEnableAllButton, colspan=3)
 guiAppButtonsTable.tr()
-guiAppButtonsTable.td(guiResetAllButton)
-guiAppButtonsTable.td(guiQuitButton)
+guiAppButtonsTable.td(guiResetAllButton, colspan=3)
+guiAppButtonsTable.td(guiQuitButton, colspan=3)
+global guiModeGroup
+if args.default_mode_run:
+    guiModeGroup = gui.Group(name="mode",value="Run")
+    bleBot.DEFAULT_IGNITER_LOCK = False
+    bleBot.DEFAULT_MOTORS_LOCK = False
+elif args.default_mode_lockdown:
+    guiModeGroup = gui.Group(name="mode",value="Lockdown")
+    bleBot.DEFAULT_IGNITER_LOCK = True
+    bleBot.DEFAULT_MOTORS_LOCK = True
+else:
+    guiModeGroup = gui.Group(name="mode",value="No Fire")
+    bleBot.DEFAULT_IGNITER_LOCK = True
+    bleBot.DEFAULT_MOTORS_LOCK = False
+    
+guiModeGroup.connect(gui.CHANGE, doModeChange, guiModeGroup)
 guiAppButtonsTable.tr()
-guiAppButtonsTable.td(guiIgniterLockButton, colspan=2)
+guiAppButtonsTable.td(gui.Radio(guiModeGroup, "Run"), align=1, colspan=2)
+guiAppButtonsTable.td(gui.Label("  Run"), align=-1, colspan=4)
+guiAppButtonsTable.tr()
+guiAppButtonsTable.td(gui.Radio(guiModeGroup, "No Fire"), align=1, colspan=2)
+guiAppButtonsTable.td(gui.Label("  No Fire"), align=-1, colspan=4)
+guiAppButtonsTable.tr()
+guiAppButtonsTable.td(gui.Radio(guiModeGroup, "Lockdown"), align=1, colspan=2)
+guiAppButtonsTable.td(gui.Label("  Lockdown"), align=-1, colspan=4)
 if (numControllers == 1):
     guiAppTable.tr()
 guiAppTable.td(guiAppButtonsTable, style={'border':3})
@@ -383,6 +407,9 @@ while True:
             
         elif (event.type == KEYDOWN and event.key == pygame.K_x):
             doRestart()
+            
+        elif (event.type == KEYDOWN and event.key == pygame.K_SPACE):
+            guiModeGroup.value = "Lockdown"
             
         elif (event.type == KEYDOWN or event.type == KEYUP):
             for controller in controllers:

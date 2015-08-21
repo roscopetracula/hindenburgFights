@@ -210,8 +210,10 @@ class bleBot():
     WAITING=2
     CONNECTING=3
     FAILED=4
-    DEFAULT_ENABLED = True  # Enable blimps when the program is started.
-
+    DEFAULT_ENABLED = True      # Enable blimps when the program is started.
+    DEFAULT_MOTORS_LOCK = False 
+    DEFAULT_IGNITER_LOCK = True
+    
     def __init__( self, name, ble_adr, doAppGuiCallback ):
 
         # Set up connection-related data.
@@ -222,17 +224,23 @@ class bleBot():
         self.name = name
         self.btlePeripheral = btle.Peripheral()
         self.btleDebug = False
+
+        self.blimpFlags = 0   # Flags for triggers and igniter lock.
+        if bleBot.DEFAULT_IGNITER_LOCK:
+            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_IGNITER_BIT
+        if bleBot.DEFAULT_MOTORS_LOCK:
+            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_MOTORS_BIT
         if bleBot.DEFAULT_ENABLED:
             self.connectionState = self.WAITING
         else:
             self.connectionState = self.DISABLED
+
         self.immediateUpdate = True # Update blimp soon as possible.
         self.igniterLocked = True   # Default to igniter locked.
         self.curRSSI = "?"
         self.curTemp = "?"
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
-        self.blimpFlags = FLAGS_LOCK_IGNITER_BIT  # Flags for triggers and igniter lock.
         self.lastTxBlimpFlags = self.blimpFlags   # 
         self.batterySessionStart = time.time()
         self.ignState = 0
@@ -600,13 +608,17 @@ class bleBot():
         if changeFound: 
             self.txState()
 
-    def setIgniterLock(self, newLockState):
-        if newLockState:
+    def setLocks(self, newIgniterLockState, newMotorLockState = False):
+        if newIgniterLockState:
             self.blimpFlags = self.blimpFlags | FLAGS_LOCK_IGNITER_BIT
         else:
             self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
+        if newMotorLockState:
+            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_MOTORS_BIT
+        else:
+            self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_MOTORS_BIT)
         self.immediateUpdate = True
-        
+
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
         self.gui.setAxis(motorIndex, motorDirection, motorSpeed)
