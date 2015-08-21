@@ -104,7 +104,6 @@ int curRSSI = 0;
 unsigned long lastPingMillis = 0;
 unsigned long igniterLastOn = 0;
 unsigned long igniterTriggerReleased = 0;
-bool motorsCurrentlyLocked = false;
 bool triggerInterruptCalled = false;
 bool timeoutPossible = 0;
 bool isConnected = false;
