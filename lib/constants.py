@@ -10,7 +10,7 @@ DEBUG_VOLTAGE = True      # Print debug messages for blimp voltage
                           # status.
 DEBUG_TRIGGER = False     # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False     # Print debug messages of igniter on/off.
-DEBUG_CONTROLLERS = True  # Debug controller configurations.
+DEBUG_CONTROLLERS = False # Debug controller configurations.
 
 
 # Connection Constants
