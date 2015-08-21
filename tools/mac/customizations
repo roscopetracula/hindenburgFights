@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Swap option and command.
-echo 1 | sudo tee /sys/module/hid_apple/parameters/swap_opt_cmd
+# Swap option and command. Disabled as swapping is now handled
+# elsewhere in initial setup.
+# echo 1 | sudo tee /sys/module/hid_apple/parameters/swap_opt_cmd
 
 # Turn off tap-to-click.
 synclient MaxTapTime=0

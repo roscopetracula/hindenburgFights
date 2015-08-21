@@ -1,4 +1,4 @@
-#!/bin/bash
+!/bin/bash
 
 # Finish any old configurations.
 sudo dpkg --configure -a 
@@ -7,7 +7,7 @@ sudo dpkg --configure -a
 sudo apt-get -y remove pygame
 sudo apt-get -y update
 sudo apt-get -y dist-upgrade
-sudo apt-get -y install wget screen git emacs xboxdrv mercurial arduino guake xbindkeys xdotool python-pexpect
+sudo apt-get -y install wget screen git emacs xboxdrv mercurial arduino guake xbindkeys xdotool python-pexpect mouseemu
 
 # Build bluepy.
 cd ~/hindenburgFights/bluepy/bluepy
@@ -22,8 +22,12 @@ cd ~
 # Set up hcitool.
 ~/hindenburgFights/tools/setup_hcitool_permissions.sh 
 
-# Copy key bindings.
-cp -v ~/hindenburgFights/tools/mac/.xbindkeysrc ~
+# Link key bindings. 
+ln -s ~/hindenburgFights/tools/mac/.xbindkeysrc ~/.xbindkeysrc
+
+# Set up mouseemu defaults. Currently disabled as mouseemu is not 
+# working on this machine.
+#sudo cp -v /home/bb/hindenburgFights/tools/mac/mouseemu /etc/default
 
 # Set up pygame.
 cd ~
@@ -37,4 +41,8 @@ xdg-open https://www.arduino.cc/en/Main/Donate
 
 # Give the rfdunio board URL for use in the arduino app.
 echo http://rfduino.com/package_rfduino_index.json
+
+# Set up the option/command swap.
+echo options hid_apple swap_opt_cmd=1 | sudo tee /etc/modprobe.d/hid_apple.conf
+sudo update-initramfs -u -k all
 
