@@ -311,11 +311,18 @@ class bleBot():
             print "MESSAGE RECEIVED ON UNEXPECTED HANDLE [", cHandle, "]: ", data
             return
 
+        # Get the current time.
+        curTime = time.time()
+
+        # Log it.
+        if DEBUG_LOG_FILE:
+            logFile = open(DEBUG_LOG_FILE, "a")
+            logFile.write("{:f} receive {:s} {:s}\n".format(curTime, self.ble_adr, ''.join(x[0].encode("hex") for x in data)))
+            logFile.close()
+        
         # First byte is the command; the rest is the actual payload.
         rcvCmd = ord(data[0])
         data = data[1:]
-
-        curTime = time.time()
         
         if rcvCmd == self.RETURN_MSG_STRING:
             # For strings, print the complete string if there's a null termination,
@@ -418,6 +425,9 @@ class bleBot():
             
     def connect( self ):
 
+        # Always immediately update after connect.
+        self.immediateUpdate = True
+
         if (self.ble_adr == "dummy"):
             if DEBUG_CONNECT:
                 print "dummy connection established"
@@ -509,10 +519,16 @@ class bleBot():
         # for RFduino: char-write-cmd 0x0011 41424344555555
         if DEBUG_TX:
             print "{:s} {:s}> {:s}".format(self.ble_adr, "snd" if self.connectionState == self.CONNECTED else "noconn", value)
-
+            
         if (self.connectionState != self.CONNECTED):
             return
-        
+
+        # Log it.
+        if DEBUG_LOG_FILE:
+            logFile = open(DEBUG_LOG_FILE, "a")
+            logFile.write("{:f} send {:s} {:s}\n".format(time.time(), self.ble_adr, value))
+            logFile.close()
+
         # Fake sending if we are using a dummy blimp.
         if (self.ble_adr == "dummy"):
             return

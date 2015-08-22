@@ -27,6 +27,12 @@ from lib.controller import (
 def doQuit(value = None):
     for controller in controllers:
         controller.cleanup()
+        
+    if DEBUG_LOG_FILE:
+        logFile = open(DEBUG_LOG_FILE, "a")
+        logFile.write("{:f} stop\n".format(time.time()))
+        logFile.close()
+
     pygame.quit()
     sys.exit()
 
@@ -152,6 +158,12 @@ parser.add_argument('--minimum-blimps', action='store', help='make sure we have 
 args = parser.parse_args()
 Controller.CONFIG_FILE = args.config
 
+# Start logging.
+if DEBUG_LOG_FILE:
+    logFile = open(DEBUG_LOG_FILE, "a")
+    logFile.write("{:f} start\n".format(time.time()))
+    logFile.close()
+    
 # Kill all bluepy helpers.  Note that this prevents running more than
 # one blimpControl at once!
 os.system("killall -q bluepy-helper")
@@ -161,6 +173,7 @@ if args.default_enabled:
     bleBot.DEFAULT_ENABLED = True
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
+
 
 # Discover bluetooth devices for scanning.
 bleDeviceNames = []

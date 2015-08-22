@@ -1,3 +1,6 @@
+# Log as much as possible to this file, if non-None.
+DEBUG_LOG_FILE = "blimpControl.log"
+
 # Debug Flags
 DEBUG_SCAN = False        # Debug blimp scanning.
 DEBUG_TX = False          # Print debug messages for transmissions.
