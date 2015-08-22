@@ -111,7 +111,8 @@ class Controller(object):
     def __init__(self, bleBlimp):
         self.bleBlimp = bleBlimp
         self.isAdmin = False
-
+        self.curTemplate = -1
+        
     def cleanup(self):
         self.bleBlimp.cleanup()
 

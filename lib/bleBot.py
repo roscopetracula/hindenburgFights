@@ -34,6 +34,12 @@ class bleBotGui():
             typename = "kbd"
         else:
             typename = "UNKNOWN"
+
+        if self.bot.controller.curTemplate == -1:
+            self.controllerTemplateButton.value = "*"
+        else:
+            self.controllerTemplateButton.value = CONTROLLER_TEMPLATES[self.bot.controller.curTemplate]["char_name"]
+            
         self.controllerLabel.set_text("{:s}{:s}".format(typename, " (G)" if self.bot.controller.isAdmin else ""))
     
     def __init__( self, ble_bot ):
@@ -52,16 +58,19 @@ class bleBotGui():
         self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
         self.frame.tr()
         self.controllerLabel = gui.Label()
-        self.frame.td(self.controllerLabel, colspan=3, style=makeBorder(O, 0, 0, I))
+        self.frame.td(self.controllerLabel, colspan=2, style=makeBorder(O, 0, 0, I))
         self.grabButton = gui.Button("g")
         self.controllerRemapLeftButton = gui.Button("<")
         self.controllerRemapRightButton = gui.Button(">")
+        self.controllerTemplateButton = gui.Button("*")
+        self.frame.td(self.controllerTemplateButton, style=makeBorder(0, 0, 0, I), colspan=1, width=COL_WIDTH)
         self.frame.td(self.controllerRemapLeftButton, style=makeBorder(0, 0, 0, I), colspan=1, width=COL_WIDTH)
         self.frame.td(self.grabButton, style=makeBorder(0, 0, 0, I), colspan=1, width=COL_WIDTH)
         self.frame.td(self.controllerRemapRightButton, style=makeBorder(0, O, 0, I), colspan=1, width=COL_WIDTH)
         self.grabButton.connect(gui.CLICK, self.doGrab, None)
         self.controllerRemapLeftButton.connect(gui.CLICK, self.doControllerLeft, None)
         self.controllerRemapRightButton.connect(gui.CLICK, self.doControllerRight, None)
+        self.controllerTemplateButton.connect(gui.CLICK, self.doTemplateRotate, None)
     
         # Build the table of axes, including sliders and faults.
         self.axisLabels = [gui.Label("Throttle"), gui.Label("Pitch"), gui.Label("Yaw")]
@@ -160,13 +169,16 @@ class bleBotGui():
         self.bot.reset()
 
     def doGrab(self, value):
-        self.bot.doAppGuiCallback("grab", self.bot)            
-    
+        self.bot.doAppGuiCallback("grab", self.bot)
+
     def doControllerLeft(self, value):
-        self.bot.doAppGuiCallback("left", self.bot)            
-    
+        self.bot.doAppGuiCallback("left", self.bot)
+        
     def doControllerRight(self, value):
-        self.bot.doAppGuiCallback("right", self.bot)            
+        self.bot.doAppGuiCallback("right", self.bot)
+
+    def doTemplateRotate(self, value):
+        self.bot.doAppGuiCallback("template", self.bot)
     
     def doVoltageOverride(self, value):
         # Note that this currently is a one-way override; you need to reset the device to

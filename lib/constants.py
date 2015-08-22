@@ -10,8 +10,8 @@ DEBUG_VOLTAGE = True      # Print debug messages for blimp voltage
                           # status.
 DEBUG_TRIGGER = False     # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False     # Print debug messages of igniter on/off.
-DEBUG_CONTROLLERS = False # Debug controller configurations.
-DEBUG_MODE_CHANGE = False  # Debug mode changes.
+DEBUG_CONTROLLERS = True # Debug controller configurations.
+DEBUG_MODE_CHANGE = False # Debug mode changes.
 
 # Connection Constants
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
@@ -66,3 +66,31 @@ FLAGS_RIGHT_TRIGGER_BIT = 0x20
 FLAGS_LOCK_IGNITER_BIT = 0x01
 FLAGS_LOCK_MOTORS_BIT = 0x02
 
+
+# Controller templates
+CONTROLLER_TEMPLATES = [
+    {
+	'name': "Default",
+	'char_name': "D",
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, 1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+    },
+    {
+	'name': "Inverted",
+	'char_name': "I",
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, -1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+    },
+]

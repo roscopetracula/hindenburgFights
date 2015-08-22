@@ -83,6 +83,20 @@ def doAppGuiCallback(cmd, bleBlimp):
         bleBlimp.controller = controllers[i]
         bleBlimp.gui.updateControllerDisplay()
 
+    elif cmd == "template":
+        curController = bleBlimp.controller
+        curController.curTemplate = (curController.curTemplate + 1) % len(CONTROLLER_TEMPLATES)
+        newTemplate = CONTROLLER_TEMPLATES[curController.curTemplate]
+        if DEBUG_CONTROLLERS:
+            print "template on current controller for blimp {:s} switched to {:s}/{:s} ({:d})".format(bleBlimp.name, newTemplate["name"], newTemplate["char_name"], curController.curTemplate)
+        curController.axisMap = newTemplate["orientation"]
+        curController.leftTriggerAxis = newTemplate["leftTriggerAxis"]
+        curController.rightTriggerAxis = newTemplate["rightTriggerAxis"]
+        curController.igniterButton = newTemplate["igniterButton"]
+
+        
+        bleBlimp.gui.updateControllerDisplay()
+
     elif cmd == "left" or cmd == "right":
         curController = bleBlimp.controller
         i = controllers.index(curController)
