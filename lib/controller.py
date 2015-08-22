@@ -211,6 +211,8 @@ class XboxController(Controller):
         self.type = XBOX
         self.axisMap = axisMap
         self.joystick = joystick
+        self.joystick.init()
+
         #used to track changes in state; send only upon state change.
         self.axisState = []
         self.deadzone = deadzone
@@ -223,12 +225,17 @@ class XboxController(Controller):
 
     def handleXbox(self):
         nowAxisState = ["00","00","00","00"]
-        self.joystick.init()
         for axis in self.axisMap.items():
             # axis[1][0]  --motorIndex
             # axis[1][1]  --xbox axis
             # axis[1][2]  --axis direction multiplier
-            axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
+
+            # Hack to deal with triggers
+            if axis[1][1] == 5:
+                axisVal = (self.joystick.get_axis(5) - self.joystick.get_axis(2)) * axis[1][2] / 2.0
+                #print "{:f} {:f} {:f}".format(self.joystick.get_axis(5), self.joystick.get_axis(2), axisVal)
+            else:
+                axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
             if axisVal > self.deadzone:
                 motorDirection = "01"
                 motorSpeed = numToMotorCode(self.undeadzone(axisVal))

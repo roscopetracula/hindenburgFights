@@ -88,7 +88,8 @@ def doAppGuiCallback(cmd, bleBlimp):
 
         bleBlimp.controller = controllers[i]
         bleBlimp.gui.updateControllerDisplay()
-
+        bleBlimp.immediateUpdate = True
+        
     elif cmd == "template":
         curController = bleBlimp.controller
         curController.curTemplate = (curController.curTemplate + 1) % len(CONTROLLER_TEMPLATES)
@@ -99,9 +100,9 @@ def doAppGuiCallback(cmd, bleBlimp):
         curController.leftTriggerAxis = newTemplate["leftTriggerAxis"]
         curController.rightTriggerAxis = newTemplate["rightTriggerAxis"]
         curController.igniterButton = newTemplate["igniterButton"]
-
         
         bleBlimp.gui.updateControllerDisplay()
+        bleBlimp.immediateUpdate = True
 
     elif cmd == "left" or cmd == "right":
         curController = bleBlimp.controller
@@ -137,7 +138,9 @@ def doAppGuiCallback(cmd, bleBlimp):
 
         # Update the GUI.
         curBlimp.gui.updateControllerDisplay()
+        curBlimp.immediateUpdate = True
         otherBlimp.gui.updateControllerDisplay()
+        otherBlimp.immediateUpdate = True
         
         if DEBUG_CONTROLLERS:
             print "swapped controllers {:d} and {:d}".format(i, i+dir)

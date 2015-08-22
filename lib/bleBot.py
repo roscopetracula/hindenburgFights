@@ -594,14 +594,13 @@ class bleBot():
 
     # Send a full state update.
     def txState(self):
-        tmpMsg = ""
+        tmpMsg = "0300{:02x}".format(self.blimpFlags)
         for i in range(3):
             self.lastTxState[i] = self.motorState[i] 
             tmpMsg += "0"+str(i)+"".join(self.motorState[i])
 
         self.lastTxBlimpFlags = self.blimpFlags
 
-        tmpMsg += "0300{:02x}".format(self.blimpFlags)
         self.lastTxTime = time.time()
         self.immediateUpdate = False
         self.sendMessage(tmpMsg)
