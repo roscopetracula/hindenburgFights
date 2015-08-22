@@ -23,10 +23,11 @@ def load_config():
     
 def load_controllers(doAppGuiCallback):
     load_config()
-    return [
-        create_controller(controller_config, doAppGuiCallback)
-        for controller_config in CONTROLLERS
-    ]
+    controllers = []
+    for controller_config in CONTROLLERS:
+        if controller_config["type"] != NO_CONTROLLER:
+            controllers.append(create_controller(controller_config, doAppGuiCallback))
+    return controllers
 
 def has_xbox_controller():
     load_config()

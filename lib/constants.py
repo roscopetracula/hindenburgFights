@@ -29,6 +29,7 @@ BLIMP_MISSING_TIME  = 1.0    # Time (s) without an update before a blimp is mark
 # Controller Constants
 XBOX = 1
 KEYBOARD = 2
+NO_CONTROLLER = 0
 
 AXIS_0 = 0
 AXIS_1 = 1

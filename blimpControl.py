@@ -147,7 +147,7 @@ def doAppGuiCallback(cmd, bleBlimp):
     else:
         print "unknown app callback command {:s}".format(cmd)
         
-parser = argparse.ArgumentParser(description='We be big blimpin.', formatter_class=argparse.RawDescriptionHelpFormatter, epilog="global keys:\n  q\t\tquit\n  e\t\tenable all blimps\n  d\t\tdisable all blimps\n  r\t\treset all blimps\n  x\t\texit and restart blimpControl\n  space\t\tlockdown mode")
+parser = argparse.ArgumentParser(description='We be big blimpin.', formatter_class=argparse.RawDescriptionHelpFormatter, epilog="global keys:\n  q\t\tquit\n  e\t\tenable all blimps\n  d\t\tdisable all blimps\n  r\t\treset all blimps\n  x\t\texit and restart blimpControl\n  enter\t\trun mode\n  space\t\tlockdown mode")
 parser.add_argument('--config', action='store', help='specificy configuration file (default config.py)', default='config.py')
 parser.add_argument('--scan-devices', action='store', help='comma-separated list of bluetooth device(s) to use for background scanning (default is all devices); \"-\" is a null device (effectively disabling scanning if alone), and \"+\" is all detected devices', default='+')
 group = parser.add_mutually_exclusive_group()
@@ -177,6 +177,16 @@ if args.default_enabled:
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
 
+# Set the mode defaults.
+if args.default_mode_run:
+    bleBot.DEFAULT_IGNITER_LOCK = False
+    bleBot.DEFAULT_MOTORS_LOCK = False
+elif args.default_mode_lockdown:
+    bleBot.DEFAULT_IGNITER_LOCK = True
+    bleBot.DEFAULT_MOTORS_LOCK = True
+else:
+    bleBot.DEFAULT_IGNITER_LOCK = True
+    bleBot.DEFAULT_MOTORS_LOCK = False
 
 # Discover bluetooth devices for scanning.
 bleDeviceNames = []
@@ -251,7 +261,13 @@ controllers = load_controllers(doAppGuiCallback)
 while (len(controllers) < args.minimum_blimps):
     controllers.append(create_controller(KeyboardController.DummyKeyboardController))       
 numControllers = len(controllers)
-controllersPerLine = 4
+if numControllers < 2:
+    controllersPerLine = 2
+elif numControllers == 3:
+    controllersPerLine = 3
+else:
+    controllersPerLine = 4
+
 
 # Initialize GUI.
 guiApp = gui.Desktop()
@@ -282,16 +298,10 @@ guiAppButtonsTable.td(guiQuitButton, colspan=3)
 global guiModeGroup
 if args.default_mode_run:
     guiModeGroup = gui.Group(name="mode",value="Run")
-    bleBot.DEFAULT_IGNITER_LOCK = False
-    bleBot.DEFAULT_MOTORS_LOCK = False
 elif args.default_mode_lockdown:
     guiModeGroup = gui.Group(name="mode",value="Lockdown")
-    bleBot.DEFAULT_IGNITER_LOCK = True
-    bleBot.DEFAULT_MOTORS_LOCK = True
 else:
     guiModeGroup = gui.Group(name="mode",value="No Fire")
-    bleBot.DEFAULT_IGNITER_LOCK = True
-    bleBot.DEFAULT_MOTORS_LOCK = False
     
 guiModeGroup.connect(gui.CHANGE, doModeChange, guiModeGroup)
 guiAppButtonsTable.tr()
@@ -438,6 +448,9 @@ while True:
         elif (event.type == KEYDOWN and event.key == pygame.K_x):
             doRestart()
             
+        elif (event.type == KEYDOWN and event.key == pygame.K_RETURN ):
+            guiModeGroup.value = "Run"
+
         elif (event.type == KEYDOWN and event.key == pygame.K_SPACE):
             guiModeGroup.value = "Lockdown"
             
