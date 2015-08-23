@@ -23,6 +23,20 @@ class bleBotGui():
     axisNoMap = {0:0, 1:2, 2:1}
     axisDirMap = {0:"01", 1:"01", 2:"01"}
 
+    def doMotorLockSwitchChanged(self, value):
+        self.bot.immediateUpdate = True
+        if self.motorLockSwitch.value:
+            self.bot.blimpFlags = self.bot.blimpFlags | FLAGS_LOCK_MOTORS_BIT
+        else:
+            self.bot.blimpFlags = self.bot.blimpFlags & (0xff ^ FLAGS_LOCK_MOTORS_BIT)
+    
+    def doIgniterLockSwitchChanged(self, value):
+        self.bot.immediateUpdate = True
+        if self.igniterLockSwitch.value:
+            self.bot.blimpFlags = self.bot.blimpFlags | FLAGS_LOCK_IGNITER_BIT
+        else:
+            self.bot.blimpFlags = self.bot.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
+    
     def updateControllerDisplay( self ):
         if not self.bot.controller:
             self.controllerLabel.set_text("DETACHED")
@@ -52,10 +66,9 @@ class bleBotGui():
 
         # Add the heading.
         self.frame.tr()
-
         self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
-        self.frame.tr()
-        self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
+        #self.frame.tr()
+        #self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
         self.frame.tr()
         self.controllerLabel = gui.Label()
         self.frame.td(self.controllerLabel, colspan=2, style=makeBorder(O, 0, 0, I))
@@ -127,6 +140,16 @@ class bleBotGui():
         self.frame.td(self.stateLabel, style=makeBorder(O, 0, I, 0), colspan=3)
         self.frame.td(self.voltageLabel, style=makeBorder(I, 0, I, 0), colspan=2)
         self.frame.td(self.voltageOverrideButton, style=makeBorder(0, O, I, 0), colspan=1)
+        self.frame.tr()
+        #self.frame.td(gui.Label("Lock: "), style=makeBorder(O, 0, I, 0), colspan=2)
+        self.frame.td(gui.Label("Motor Lock"), style=makeBorder(O, 0, I, 0), colspan=2)
+        self.motorLockSwitch = gui.Switch(value=self.bot.DEFAULT_MOTORS_LOCK, name='motor_lock')
+        self.motorLockSwitch.connect(gui.CHANGE, self.doMotorLockSwitchChanged, None)
+        self.frame.td(self.motorLockSwitch, style=makeBorder(0, I, I, 0), colspan=1)
+        self.igniterLockSwitch = gui.Switch(value=self.bot.DEFAULT_IGNITER_LOCK, name='igniter_lock')
+        self.igniterLockSwitch.connect(gui.CHANGE, self.doIgniterLockSwitchChanged, None)
+        self.frame.td(self.igniterLockSwitch, style=makeBorder(0, 0, I, 0), colspan=1)
+        self.frame.td(gui.Label("Igniter Lock"), style=makeBorder(0, O, I, 0), colspan=2)
         self.frame.tr()
         self.frame.td(self.disableButton, style=makeBorder(O, 0, I, O), colspan=3)
         self.frame.td(self.resetButton, style=makeBorder(0, O, I, O), colspan=3)
@@ -637,14 +660,14 @@ class bleBot():
 
     def setLocks(self, newIgniterLockState, newMotorLockState = False):
         if newIgniterLockState:
-            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_IGNITER_BIT
+            self.gui.igniterLockSwitch.value = True
         else:
-            self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
+            self.gui.igniterLockSwitch.value = False
+
         if newMotorLockState:
-            self.blimpFlags = self.blimpFlags | FLAGS_LOCK_MOTORS_BIT
+            self.gui.motorLockSwitch.value = True
         else:
-            self.blimpFlags = self.blimpFlags & (0xff ^ FLAGS_LOCK_MOTORS_BIT)
-        self.immediateUpdate = True
+            self.gui.motorLockSwitch.value = False
 
     def setMotorState(self, motorIndex, motorDirection, motorSpeed):
         self.motorState[motorIndex] = (motorDirection,motorSpeed)
