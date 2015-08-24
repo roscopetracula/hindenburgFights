@@ -3,16 +3,16 @@
 #include "rfduinoControl.h"
 
 // General timeouts/intevals.
-#define CONNECTION_TIMEOUT      1000 /* Time (ms) with no received messages before all motors are turned off. */
-#define UPDATE_INTERVAL_DEFAULT 1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
-#define UPDATE_INTERVAL_FAST     100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
-#define UPDATE_INTERVAL_IMMEDIATE  0 /* Interval to use to immediately update the client. */
+#define DEF_CONNECTION_TIMEOUT      1000 /* Time (ms) with no received messages before all motors are turned off. */
+#define DEF_UPDATE_INTERVAL_DEFAULT 1000 /* Interval (ms) between status updates.  Undefine to not send updates. Note that this is a lower bound. */
+#define DEF_UPDATE_INTERVAL_FAST     100 /* Interval (ms) between fast status updates.  If fastUpdate is set, it will update one time at this faster interval; can be 0. */
+#define UPDATE_INTERVAL_IMMEDIATE      0 /* Interval to use to immediately update the client. */
 
 // Igniter-related timeouts.
 // Summary: After starting, the igniter will turn off IGNITER_RELEASE_TIME ms after all triggers are released, but in no case will it turn off before IGNITER_MINIMUM_TIME or stay on past IGNITER_MAXIMUM_TIME.
-#define IGNITER_MINIMUM_TIME 2500 /* Minimum time (ms) after activation of trigger, before the igniter is turned off.  */
-#define IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the trigger has been released.  Will not exceed maximum. */
-#define IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */
+#define DEF_IGNITER_MINIMUM_TIME 2500 /* Minimum time (ms) after activation of trigger, before the igniter is turned off.  */
+#define DEF_IGNITER_RELEASE_TIME 500  /* Time (ms) that the igniter will stay on after the trigger has been released.  Will not exceed maximum. */
+#define DEF_IGNITER_MAXIMUM_TIME 5000 /* Maximum time (ms) for the igniter to be continuously on. */
 
 // Flags (#define to enable or #undef to disable)
 #define SERIAL_ENABLE            /* Enable serial communications. Watch out for loss of side effects in calls. */
@@ -33,7 +33,7 @@
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
-#define PROTOCOL_VERSION 1
+#define PROTOCOL_VERSION 2
 #define V_SET 0x3f // 3f = 5.06, or ~20v max output.
 
 #define MOTOR_FAULT_FAULT 0x01
@@ -91,6 +91,24 @@
 #define CTRL_BIT_LOCK_MOTORS     0x02
 #define CTRL_BIT_LOCK_IGNITER    0x01
 
+// Remote-configurable configuration data
+#define NUM_CONFIGS 6
+short connectionTimeout = DEF_CONNECTION_TIMEOUT;
+short updateIntervalDefault = DEF_UPDATE_INTERVAL_DEFAULT;
+short updateIntervalFast = DEF_UPDATE_INTERVAL_FAST;
+short igniterMinimumTime = DEF_IGNITER_MINIMUM_TIME;
+short igniterReleaseTime = DEF_IGNITER_RELEASE_TIME;
+short igniterMaximumTime = DEF_IGNITER_MAXIMUM_TIME;
+short *configPointers[] = {&connectionTimeout, 
+  &updateIntervalDefault,
+  &updateIntervalFast,
+  &igniterMinimumTime,
+  &igniterReleaseTime,
+  &igniterMaximumTime,
+  NULL};
+short configDefaults[] = {DEF_CONNECTION_TIMEOUT, DEF_UPDATE_INTERVAL_DEFAULT, DEF_UPDATE_INTERVAL_FAST, DEF_IGNITER_MINIMUM_TIME, DEF_IGNITER_RELEASE_TIME, DEF_IGNITER_MAXIMUM_TIME};
+
+// Other configuration data
 byte motorIndexes[3] = {MOTOR1, MOTOR2, MOTOR3};
 byte curMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
 byte nextMotorStates[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -171,7 +189,7 @@ uint8_t readExpanderRegister(uint8_t expRegister) {
 }
 
 // Make the next update faster.  If the value received is actually slower than the next scheduled update, don't change anything.
-void fastUpdate(int newUpdateTime = UPDATE_INTERVAL_FAST) {
+void fastUpdate(int newUpdateTime = updateIntervalFast) {
   if (newUpdateTime < nextUpdateTime)
     nextUpdateTime = newUpdateTime;
 }
@@ -569,7 +587,7 @@ void loop()
   updateMotorFaults(loopMillis);
 
   // Time out and shut everything down if we haven't heard from the transmitter in too long.  Note that loopMillis can actually be less than lastPingMillis, as receives are asynchronous.
-  if (loopMillis - lastPingMillis > CONNECTION_TIMEOUT && loopMillis > lastPingMillis && timeoutPossible == 1) {
+  if (loopMillis - lastPingMillis > connectionTimeout && loopMillis > lastPingMillis && timeoutPossible == 1) {
     DBGPRINTLN(" TIMED OUT ");
     bleSendString(" TIMED OUT ");
     timeoutPossible = 0; //can only timeout once
@@ -609,9 +627,9 @@ void loop()
     buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 5] = statusFlags;
     memcpy(&buf[1 + sizeof(curRSSI) + sizeof(curTemp) + 6], &batteryVoltageX100, sizeof(batteryVoltageX100));
 
-    bleSendData(buf, bufLen);                 // Send the status update.
-    lastUpdateMillis = millis();              // Record the last update time.
-    nextUpdateTime = UPDATE_INTERVAL_DEFAULT; // Return the next update time to default.
+    bleSendData(buf, bufLen);               // Send the status update.
+    lastUpdateMillis = millis();            // Record the last update time.
+    nextUpdateTime = updateIntervalDefault; // Return the next update time to default.
   }
 }
 
@@ -701,30 +719,48 @@ void RFduinoBLE_onReceive(char *data, int len) {
     expectedMsgCounter = (msgCounter + 1) % 255;
   }
 
-  // We are assuming that any full block of three bytes can be interpreted,
-  // and any remainder is ignored.
-  for (int cmdStart = 0; cmdStart + 3 <= len; cmdStart += 3)
-  {
+  // We are assuming that any remaining bytes can be interpreted.
+  char *cmdPtr = data;
+  while (cmdPtr < data + len) {
     // Store motor or trigger states in the next state; the devices will be updated in the main loop.
-    if (0x00 <= data[cmdStart + 0] && data[cmdStart + 0] <= 0x02) {
-      nextMotorStates[data[cmdStart + 0]][0] = data[cmdStart + 1];
-      nextMotorStates[data[cmdStart + 0]][1] = data[cmdStart + 2];
-    } else if (data[cmdStart + 0] == 0x03) {
-      curControlFlags = data[cmdStart + 2];
-    } else if (data[cmdStart + 0] == 0x04) {
+    if (0x00 <= cmdPtr[0] && cmdPtr[0] <= 0x02) {
+      nextMotorStates[cmdPtr[0]][0] = cmdPtr[1];
+      nextMotorStates[cmdPtr[0]][1] = cmdPtr[2];
+      cmdPtr += 3;
+    } else if (cmdPtr[0] == 0x03) {
+      curControlFlags = cmdPtr[2];
+      cmdPtr += 3;
+    } else if (cmdPtr[0] == 0x04) {
       RFduino_systemReset();
-    } else if (data[cmdStart + 0] == 0x05) {
-      if (data[cmdStart + 1] == 0x01) {
+      cmdPtr += 3; // Gratuituous.
+    } else if (cmdPtr[0] == 0x05) {
+      if (cmdPtr[1] == 0x01) {
         overrideBatteryVoltage = true;
       } else {
         bleSendString("voltage override canceled but not implemented");
       }
+      cmdPtr += 3;
+    } else if (cmdPtr[0] == 0x06) {
+      cmdPtr++;
+      for (int i=0; configPointers[i] != NULL; i++) {
+        short newCfgData = cmdPtr[0] << 8 | cmdPtr[1];
+        short *curCfg = configPointers[i]; 
+        if (newCfgData != (short)0xffff) {
+          DBGPRINTF("new config %d, old: %d, default: %d, new: %d\n", i, *curCfg, configDefaults[i], newCfgData);          
+          *curCfg = newCfgData;
+        } else {
+          DBGPRINTF("no config on %d, old: %d, default: %d\n", i, *curCfg, configDefaults[i]);
+          *curCfg = configDefaults[i];
+        }
+        cmdPtr += 2;
+      }
     } else {
       // We don't know this command.
       char buf[32];
-      snprintf(buf, 32, "Unknown command number %d.\n", data[cmdStart + 0]);
+      snprintf(buf, 32, "Unknown command number %d.\n", cmdPtr[0]);
       bleSendString(buf);
       DBGPRINT(buf);
+      cmdPtr++;
     }
   }
   // now that we've recieved valid data it's possible to timeout.
@@ -848,7 +884,7 @@ void updateIgniterState(void) {
     case IGNITER_STATE_ON:
       if (igniterTriggered) {
         // THE TRIGGER IS ON. If it's been on too long, turn it off.
-        if (curMillis > igniterLastOn + IGNITER_MAXIMUM_TIME) {
+        if (curMillis > igniterLastOn + igniterMaximumTime) {
           DBGPRINTF("igniter has been on too long [%d ms on], moving to cooldown\n", curMillis - igniterLastOn);
           setIgniter(0x00);
           igniterState = IGNITER_STATE_COOLDOWN;
@@ -866,13 +902,13 @@ void updateIgniterState(void) {
         // If we're re-triggerd, just go back to the ON state and continue as normal.
         DBGPRINTLN("igniter re-triggered, returning to ON state");
         igniterState = IGNITER_STATE_ON;
-      } else if (curMillis > igniterLastOn + IGNITER_MAXIMUM_TIME) {
+      } else if (curMillis > igniterLastOn + igniterMaximumTime) {
         // If we're past the maximum time, jump right to off.
         DBGPRINTF("igniter has been on too long [%d ms on] and trigger is released, turning off\n", curMillis - igniterLastOn);
         igniterState = IGNITER_STATE_OFF;
         setIgniter(0x00);
-      } else if (curMillis > igniterLastOn + IGNITER_MINIMUM_TIME &&
-                 curMillis > igniterTriggerReleased + IGNITER_RELEASE_TIME) {
+      } else if (curMillis > igniterLastOn + igniterMinimumTime &&
+                 curMillis > igniterTriggerReleased + igniterReleaseTime) {
         // If we're past the minimum on time and the release time, turn the igniter off.
         DBGPRINTF("trigger released for sufficient time [%d ms on], turning off\n", curMillis - igniterLastOn);
         setIgniter(0x00);

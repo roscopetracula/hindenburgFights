@@ -1,3 +1,12 @@
+# Configurations for blimps.  None means leave it at rfduino default.  From protocol doc, the order:
+# T = Connection Timeout (ms)
+# U = Default Update Interval (ms)
+# F = Fast Update Interval (ms)
+# N = Igniter Minimum Time (ms)
+# R = Igniter Release Time (ms)
+# X = Igniter Maximum Time (ms)
+BLIMP_REMOTE_CONFIGS = [None, None, None, None, None, None]
+
 # Log as much as possible to this file, if non-None.
 DEBUG_LOG_FILE = "blimpControl.log"
 
@@ -17,6 +26,7 @@ DEBUG_CONTROLLERS = True # Debug controller configurations.
 DEBUG_MODE_CHANGE = False # Debug mode changes.
 
 # Connection Constants
+PROTOCOL_VERSION = 2         # Current protocol version; should match rfduino.
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
                              # in this period (s).
 MIN_TRANSMIT_INTERVAL = 0.1  # Don't transmit more than once in this

@@ -45,7 +45,13 @@ fit in a 20-byte BLE packet.
   X = Igniter Lock
 04....: Reset
 05xx..: Low Voltage Override (x: 00 = off; 01 = on)
-
+06TTTTUUUUFFFFNNNNRRRRXXXX
+  T = Connection Timeout (ms)
+  U = Default Update Interval (ms)
+  F = Fast Update Interval (ms)
+  N = Igniter Minimum Time (ms)
+  R = Igniter Release Time (ms)
+  X = Igniter Maximum Time (ms)
 
 ***********************
 *** Blimp -> Client ***

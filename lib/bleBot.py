@@ -252,7 +252,7 @@ class bleBot():
     def __init__( self, name, ble_adr, doAppGuiCallback ):
 
         # Set up connection-related data.
-        self.protocolversion = "01"
+        self.protocolVersion = PROTOCOL_VERSION
         self.doAppGuiCallback = doAppGuiCallback
         self.controller = None
         self.ble_adr = ble_adr
@@ -504,8 +504,11 @@ class bleBot():
                 print "----------------------------------------------------------------------"
                 print "CONNECTION FAILED"
                 print e
-                print "BTLEException raised.  bluepy-helper may or may not be a zombie."
-                print "Try running \"killall bluepy-helper\" before running blimpControl again."
+                print "BTLEException raised.  This may mean:"
+                print "1) You don't have any Bluetooth 4.0 adapters attached to your system."
+                print "   Install at least one (and preferably two)."
+                print "2) bluepy-helper may be a zombie.  although this should be automatic,"
+                print "   try running \"killall bluepy-helper\" then blimpControl again."
                 print "----------------------------------------------------------------------"
                 self.updateConnectionState(self.FAILED)
                 return
@@ -534,6 +537,15 @@ class bleBot():
                     print "CHARACTERISTIC ",char.getHandle(),": ",char," ",char.propertiesToString()
 
         self.btlePeripheral.writeCharacteristic(0x000f, "0300".decode("hex"), False)
+
+        # Send a configuration message.
+        configMessage = "06"
+        for clientConfig in BLIMP_REMOTE_CONFIGS:
+            if clientConfig == None:
+                configMessage += "FFFF"
+            else:
+                configMessage += "{:04x}".format(clientConfig)
+        self.sendMessage(configMessage)
         return
     
     def char_write_cmd( self, value ):
@@ -605,7 +617,8 @@ class bleBot():
 
     # Sends a message, prepending any protocol data.
     def sendMessage(self, data):
-        self.char_write_cmd(self.protocolversion + format(self.counter, '02x') + data)
+        self.char_write_cmd(format(self.protocolVersion, '02x') + format(self.counter, '02x') + data)
+        
         # The counter starts at 0xFF to indicate a new connection and
         # then always rolls over after 0xFE.  This bizarre way of
         # calculating the modulus is used because it starts at 0xFF so
@@ -630,6 +643,10 @@ class bleBot():
 
     # Send a full state update when necessary (time out, new data, etc).
     def autoTxUpdate(self):
+        # Don't send anything if  we are not connected.
+        if self.connectionState != self.CONNECTED:
+            return
+
         curTime = time.time()
         
         # Don't send anything if not enough time has passed.
