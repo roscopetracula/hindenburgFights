@@ -2,6 +2,7 @@ import pygame
 from lib.constants import (
     XBOX,
     KEYBOARD,
+    NO_CONTROLLER,
     AXIS_0,
     AXIS_1,
     AXIS_2,
@@ -31,7 +32,7 @@ ADMIN_CONTROLLER = {
     'leftTriggerAxis': 2,
     'rightTriggerAxis': 5,
     'igniterButton':3,
-    'joystick': 6,
+    'joystick': 10,
 }
 
 BLIMP1 = "D0:0A:A6:18:D5:EA"
@@ -40,6 +41,10 @@ BLIMP3 = "FC:E5:E2:09:9C:0E"
 BLIMP4 = "F4:84:B0:8A:4E:64"
 BLIMP5 = "C2:44:F7:A2:07:68"
 BLIMP6 = "D2:9F:90:14:98:4C"
+BLIMP7 = "EF:15:2F:27:5A:A7"
+BLIMP8 = "D3:C8:2B:D3:28:97"
+BLIMP9 = "EC:7D:28:F0:0F:FC"
+BLIMP10 = "DF:61:33:14:51:EC"
 
 CONTROLLERS = [
     {
@@ -126,4 +131,61 @@ CONTROLLERS = [
         'igniterButton':3,
         'joystick': 5,
     },
+    {
+        'type': XBOX,
+	'name': "BLIMP 7",
+        'uuid': BLIMP7,
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, 1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+        'joystick': 6,
+    },
+    {
+        'type': XBOX,
+	'name': "BLIMP 8",
+        'uuid': BLIMP8,
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, 1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+        'joystick': 7,
+    },
+    {
+        'type': XBOX,
+	'name': "BLIMP 9",
+        'uuid': BLIMP9,
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, 1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+        'joystick': 8,
+    },
+    {
+        'type': XBOX,
+	'name': "BLIMP 10",
+        'uuid': BLIMP10,
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 1.0),
+            "u_d": (2, 4, 1.0),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':3,
+        'joystick': 9,
+    },
 ]
+
