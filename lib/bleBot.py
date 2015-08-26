@@ -9,7 +9,7 @@ import struct
 from bluepy.bluepy import btle
 from pgu import gui
 from lib.constants import *
-
+from lib.blimpTracker import *
 
 # Build a border dictionary quickly.
 def makeBorder( l, r, t, b ):
@@ -338,10 +338,7 @@ class bleBot():
         curTime = time.time()
 
         # Log it.
-        if DEBUG_LOG_FILE:
-            logFile = open(DEBUG_LOG_FILE, "a")
-            logFile.write("{:f} receive {:s} {:s}\n".format(curTime, self.ble_adr, ''.join(x[0].encode("hex") for x in data)))
-            logFile.close()
+        blimpTracker.logBlimpString("receive", self, ''.join(x[0].encode("hex") for x in data))
         
         # First byte is the command; the rest is the actual payload.
         rcvCmd = ord(data[0])
@@ -558,11 +555,8 @@ class bleBot():
         if (self.connectionState != self.CONNECTED):
             return
 
-        # Log it.
-        if DEBUG_LOG_FILE:
-            logFile = open(DEBUG_LOG_FILE, "a")
-            logFile.write("{:f} send {:s} {:s}\n".format(time.time(), self.ble_adr, value))
-            logFile.close()
+        # Log it. 
+        blimpTracker.logBlimpString("send", self, value)
 
         # Fake sending if we are using a dummy blimp.
         if (self.ble_adr == "dummy"):

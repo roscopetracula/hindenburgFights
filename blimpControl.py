@@ -11,6 +11,7 @@ import string
 from ctypes.util import find_library
 from pygame.locals import *
 from lib.constants import *
+from lib.blimpTracker import *
 
 from pgu import gui
 
@@ -28,11 +29,8 @@ def doQuit(value = None):
     for controller in controllers:
         controller.cleanup()
         
-    if DEBUG_LOG_FILE:
-        logFile = open(DEBUG_LOG_FILE, "a")
-        logFile.write("{:f} stop\n".format(time.time()))
-        logFile.close()
-
+    blimpTracker.logGlobalEvent("stop")
+    blimpTracker.close()
     pygame.quit()
     sys.exit()
 
@@ -162,10 +160,7 @@ args = parser.parse_args()
 Controller.CONFIG_FILE = args.config
 
 # Start logging.
-if DEBUG_LOG_FILE:
-    logFile = open(DEBUG_LOG_FILE, "a")
-    logFile.write("{:f} start\n".format(time.time()))
-    logFile.close()
+blimpTracker.logGlobalEvent("start")
     
 # Kill all bluepy helpers.  Note that this prevents running more than
 # one blimpControl at once!
@@ -281,20 +276,14 @@ except pygame.error:
 guiAppTable.tr()
 #guiAppTable.td(gui.Image(pygame.transform.scale(appIcon, (48, 48))), colspan=1)
 guiAppTable.td(gui.Label(GAME_NAME), colspan=2*(controllersPerLine-1), style={'border':10}, rowspan=2)
-guiAppButtonsTable = gui.Table()
-guiDisableAllButton=gui.Button("Disable All")
+guiDisableAllButton=gui.Button("Disable")
 guiDisableAllButton.connect(gui.CLICK, doDisableAll, None)
-guiEnableAllButton=gui.Button("Enable All")
+guiEnableAllButton=gui.Button("Enable")
 guiEnableAllButton.connect(gui.CLICK, doEnableAll, None)
-guiResetAllButton=gui.Button("Reset All")
+guiResetAllButton=gui.Button("Reset")
 guiResetAllButton.connect(gui.CLICK, doResetAll, None)
 guiQuitButton = gui.Button("Quit")
 guiQuitButton.connect(gui.CLICK, doQuit, None)
-guiAppButtonsTable.td(guiDisableAllButton, colspan=3)
-guiAppButtonsTable.td(guiEnableAllButton, colspan=3)
-guiAppButtonsTable.tr()
-guiAppButtonsTable.td(guiResetAllButton, colspan=3)
-guiAppButtonsTable.td(guiQuitButton, colspan=3)
 global guiModeGroup
 if args.default_mode_run:
     guiModeGroup = gui.Group(name="mode",value="Run")
@@ -302,20 +291,31 @@ elif args.default_mode_lockdown:
     guiModeGroup = gui.Group(name="mode",value="Lockdown")
 else:
     guiModeGroup = gui.Group(name="mode",value="No Fire")
-    
 guiModeGroup.connect(gui.CHANGE, doModeChange, guiModeGroup)
-guiAppButtonsTable.tr()
-guiAppButtonsTable.td(gui.Radio(guiModeGroup, "Run"), align=1, colspan=2)
-guiAppButtonsTable.td(gui.Label("  Run"), align=-1, colspan=4)
-guiAppButtonsTable.tr()
-guiAppButtonsTable.td(gui.Radio(guiModeGroup, "No Fire"), align=1, colspan=2)
-guiAppButtonsTable.td(gui.Label("  No Fire"), align=-1, colspan=4)
-guiAppButtonsTable.tr()
-guiAppButtonsTable.td(gui.Radio(guiModeGroup, "Lockdown"), align=1, colspan=2)
-guiAppButtonsTable.td(gui.Label("  Lockdown"), align=-1, colspan=4)
+
+# Build the global control table.
+guiGlobalControlTable = gui.Table()
+guiGlobalControlTable.tr()
+guiGlobalControlTable.td(gui.Radio(guiModeGroup, "Run"), align=1, colspan=1)
+guiGlobalControlTable.td(gui.Label("  Run"), align=-1, colspan=2)
+guiGlobalControlTable.td(gui.Label(), colspan=1, width=COL_WIDTH)
+guiGlobalControlTable.td(guiDisableAllButton, colspan=2, align=-1)
+guiGlobalControlTable.tr()
+guiGlobalControlTable.td(gui.Radio(guiModeGroup, "No Fire"), align=1, colspan=1)
+guiGlobalControlTable.td(gui.Label("  No Fire"), align=-1, colspan=2)
+guiGlobalControlTable.td(gui.Label(), colspan=1)
+guiGlobalControlTable.td(guiEnableAllButton, colspan=2, align=-1)
+guiGlobalControlTable.tr()
+guiGlobalControlTable.td(gui.Radio(guiModeGroup, "Lockdown"), align=1, colspan=1)
+guiGlobalControlTable.td(gui.Label("  Lockdown"), align=-1, colspan=2)
+guiGlobalControlTable.td(gui.Label(), colspan=1)
+guiGlobalControlTable.td(guiResetAllButton, colspan=2, align=-1)
+guiGlobalControlTable.tr()
+guiGlobalControlTable.td(gui.Label(), colspan=4)
+guiGlobalControlTable.td(guiQuitButton, colspan=2, align=-1)
 if (numControllers == 1):
     guiAppTable.tr()
-guiAppTable.td(guiAppButtonsTable, style={'border':3})
+guiAppTable.td(guiGlobalControlTable, style={'border':3})
 
 for c in range(0, numControllers):
     controller = controllers[c]
