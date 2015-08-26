@@ -245,6 +245,8 @@ class bleBot():
     WAITING=2
     CONNECTING=3
     FAILED=4
+    stateNames = {-2:"missing", -1:"disabled", 0:"connected", 1:"timed_out", 2:"waiting", 3:"connecting", 4:"failed"}
+    
     DEFAULT_ENABLED = True      # Enable blimps when the program is started.
     DEFAULT_MOTORS_LOCK = False 
     DEFAULT_IGNITER_LOCK = True
@@ -310,6 +312,7 @@ class bleBot():
     def updateConnectionState(self, newConnectionState):
         self.connectionState = newConnectionState
         self.gui.updateConnectionState()
+        blimpTracker.logBlimpStateChange(self)
         return
 
     def decodeFaults(self, faultValue):
