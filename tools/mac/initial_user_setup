@@ -46,3 +46,6 @@ echo http://rfduino.com/package_rfduino_index.json
 echo options hid_apple swap_opt_cmd=1 | sudo tee /etc/modprobe.d/hid_apple.conf
 sudo update-initramfs -u -k all
 
+# Add user to dialout group.
+sudo usermod -a -G dialout $USER
+
