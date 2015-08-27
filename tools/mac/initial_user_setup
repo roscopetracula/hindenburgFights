@@ -7,7 +7,7 @@ sudo dpkg --configure -a
 sudo apt-get -y remove pygame
 sudo apt-get -y update
 sudo apt-get -y dist-upgrade
-sudo apt-get -y install wget screen git emacs xboxdrv mercurial arduino guake xbindkeys xdotool python-pexpect mouseemu gparted exfat-tools midori
+sudo apt-get -y install wget screen git emacs xboxdrv mercurial arduino guake xbindkeys xdotool python-pexpect mouseemu gparted exfat-utils midori
 
 # Build bluepy.
 cd ~/hindenburgFights/bluepy/bluepy
