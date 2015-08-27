@@ -37,7 +37,7 @@ sudo apt-get -y install python-dev python-numpy libfreetype6-dev libsdl-image1.2
 python config.py && python setup.py build && sudo python setup.py install
 
 # Open the arduino web page.
-xdg-open https://www.arduino.cc/en/Main/Donate
+xdg-open https://www.arduino.cc/en/Main/Donate &
 
 # Give the rfdunio board URL for use in the arduino app.
 echo http://rfduino.com/package_rfduino_index.json
