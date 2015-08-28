@@ -9,6 +9,7 @@ BLIMP_REMOTE_CONFIGS = [None, None, None, None, None, None]
 
 # Log as much as possible to this file, if non-None.
 DEBUG_LOG_FILE = "blimpControl.log"
+PERSIST_FILE = "blimpControl.shelve"
 
 # Debug Flags
 DEBUG_SCAN = False        # Debug blimp scanning.
