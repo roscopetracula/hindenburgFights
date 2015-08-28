@@ -473,12 +473,20 @@ while True:
     for controller in controllers:
         controller.bleBlimp.autoTxUpdate()
         
-    # Update the gui display if sufficient time has passed.    
+    # Update the gui display if sufficient time has passed. 
     loopTime = time.time()
     if loopTime - lastDisplayUpdateTime >= DISPLAY_UPDATE_TIME:
         lastDisplayUpdateTime = loopTime
+
+        # Update uptimes.
+        for controller in controllers:
+            controller.bleBlimp.gui.updateTime()
+
+        # Update display.
         rects = guiApp.update()
         pygame.display.update(rects)
 
-    # Update any logs.
-    blimpTracker.sync()
+        # Update any logs.
+        blimpTracker.sync()
+
+

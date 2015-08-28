@@ -36,7 +36,15 @@ class bleBotGui():
             self.bot.blimpFlags = self.bot.blimpFlags | FLAGS_LOCK_IGNITER_BIT
         else:
             self.bot.blimpFlags = self.bot.blimpFlags & (0xff ^ FLAGS_LOCK_IGNITER_BIT)
-    
+
+    def updateTime ( self ):
+        curUptime = blimpTracker.getBlimpUptime(self.bot)
+        curMins = int(curUptime/60)
+        curSecs = int(curUptime) - curMins * 60
+        timeText = "{:02d}:{:02d}".format(curMins,curSecs)
+        if timeText <> self.timeLabel.value:
+            self.timeLabel.set_text(timeText)
+        
     def updateControllerDisplay( self ):
         if not self.bot.controller:
             self.controllerLabel.set_text("DETACHED")
@@ -286,7 +294,6 @@ class bleBot():
         self.motorState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxState = [("00","00"), ("00","00"), ("00","00")]
         self.lastTxBlimpFlags = self.blimpFlags   # 
-        self.batterySessionStart = time.time()
         self.ignState = 0
         self.trgState = 0
         self.lastTxTime = 0
@@ -412,26 +419,18 @@ class bleBot():
                     self.gui.voltageLabel.style.background = CYAN;                        
             elif (self.returnStatus & 0x01):
                 if (self.gui.voltageLabel.style.background != RED):
-                    if DEBUG_VOLTAGE:
-                        sessionLen = int(curTime - self.batterySessionStart)
-                        print "{:s} transitioned to LOW VOLTAGE mode ({:f}) - {:02d}m:{:02d}s session".format(self.ble_adr, self.batteryVoltage, int(sessionLen / 60), sessionLen % 60)
                     self.gui.voltageLabel.style.background = RED;
             elif (self.batteryVoltage < 3.0):
                 if (self.gui.voltageLabel.style.background != YELLOW):
-                    if DEBUG_VOLTAGE:
-                        if self.gui.voltageLabel.style.background == RED:
-                            self.batterySessionStart = curTime
-                        print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:f})".format(self.ble_adr, self.batteryVoltage)
                     self.gui.voltageLabel.style.background = YELLOW;
 
             else:
                 if (self.gui.voltageLabel.style.background != GREEN):
-                    if DEBUG_VOLTAGE:
-                        if self.gui.voltageLabel.style.background == RED:
-                            self.batterySessionStart = curTime
-                        print "{:s} voltage mode returned to NORMAL ({:f})".format(self.ble_adr, self.batteryVoltage)
                     self.gui.voltageLabel.style.background = GREEN;
-                
+
+            # Log the voltage change.
+            blimpTracker.logBlimpVoltage(self)
+            
             # Give us debug info.
             if DEBUG_UPDATE:
                 curTime = time.time()
