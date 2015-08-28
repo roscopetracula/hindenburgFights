@@ -480,3 +480,5 @@ while True:
         rects = guiApp.update()
         pygame.display.update(rects)
 
+    # Update any logs.
+    blimpTracker.sync()

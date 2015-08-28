@@ -22,11 +22,15 @@ class blimpState:
             blimpState.allStates.close()
         
     @staticmethod
+    def sync():
+        if blimpState.allStates:
+            blimpState.allStates.sync()
+        
+    @staticmethod
     def getState(blimpAddr):
         try:
             return blimpState.allStates[blimpAddr]
         except:
-            print "new state {:s}".format(blimpAddr)
             newState = blimpState(blimpAddr)
             blimpState.allStates[blimpAddr] = newState
             return newState
@@ -67,6 +71,7 @@ class blimpTracker:
         if blimpTracker.loggerFile:
             blimpTracker.loggerFile.write("{:f} connection {:s} {:s}\n".format(time.time(), logBlimp.ble_adr, logBlimp.stateNames[logBlimp.connectionState]))        
         logState = blimpState.getState(logBlimp.ble_adr)
+        # print "{:s} changed {:d} to {:d}".format(logState.blimpAddr, logState.curConnectionState, logBlimp.connectionState)
         logState.curConnectionState = logBlimp.connectionState
         
     @staticmethod
@@ -74,3 +79,10 @@ class blimpTracker:
         if blimpTracker.loggerFile:
             blimpTracker.loggerFile.close()
         blimpState.close()
+
+    @staticmethod
+    def sync():
+        if blimpTracker.loggerFile:
+            blimpTracker.loggerFile.flush()
+        blimpState.sync()
+        
