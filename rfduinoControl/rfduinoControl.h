@@ -24,5 +24,6 @@ enum returnMsgEnum {RETURN_MSG_STRING = 0x00,
  };
  
  enum returnStatus {RETURN_STATUS_LOW_VOLTAGE = 0x01,
+                    RETURN_STATUS_VOLTAGE_OVERRIDE = 0x02,
  };
  

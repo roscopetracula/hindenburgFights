@@ -66,7 +66,8 @@ class bleBotGui():
 
         # Add the heading.
         self.frame.tr()
-        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
+        self.timeLabel = gui.Label("00:00")
+        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, 0, O, 0))
         #self.frame.tr()
         #self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
         self.frame.tr()
@@ -114,8 +115,10 @@ class bleBotGui():
         self.rssiTempLabel = gui.Label("? / ?\xb0F")
         self.voltageLabel = gui.Label("?v", background=GREEN)
         self.voltageOverrideButton = gui.Button(gui.Label("O"));
+        self.voltageOverrideLabel = gui.Label("O")
+        self.voltageOverrideButton = gui.Button(self.voltageOverrideLabel);
         self.voltageOverrideButton.connect(gui.CLICK, self.doVoltageOverride, None)
-        self.voltageOverrideButton.disabled = True
+        #self.voltageOverrideButton.disabled = True
         self.trgLabel = gui.Label("trg", background=GREEN);
         self.ignLabel = gui.Label("ign", background=GREEN);
 
@@ -151,9 +154,9 @@ class bleBotGui():
         self.frame.td(self.igniterLockSwitch, style=makeBorder(0, 0, I, 0), colspan=1)
         self.frame.td(gui.Label("Igniter Lock"), style=makeBorder(0, O, I, 0), colspan=2)
         self.frame.tr()
-        self.frame.td(self.disableButton, style=makeBorder(O, 0, I, O), colspan=3)
-        self.frame.td(self.resetButton, style=makeBorder(0, O, I, O), colspan=3)
-
+        self.frame.td(self.disableButton, style=makeBorder(O, 0, I, O), colspan=2)
+        self.frame.td(self.resetButton, style=makeBorder(0, I, I, O), colspan=2)
+        self.frame.td(self.timeLabel, colspan=2, style=makeBorder(0, O, I, O))
         # Done!
         return
     
@@ -204,11 +207,15 @@ class bleBotGui():
         self.bot.doAppGuiCallback("template", self.bot)
     
     def doVoltageOverride(self, value):
-        # Note that this currently is a one-way override; you need to reset the device to
-        # undo the override.
-        if self.bot.connectionState == bleBot.CONNECTED:
-            self.bot.sendMessage("050100");
-        pass
+        # Set voltage override by bit.
+        if self.bot.blimpFlags & FLAGS_VOLTAGE_OVERRIDE_BIT:
+            self.bot.blimpFlags = self.bot.blimpFlags & (0xff ^ FLAGS_VOLTAGE_OVERRIDE_BIT)
+            self.voltageOverrideLabel.set_text("O");
+            self.bot.immediateUpdate = True
+        else:
+            self.bot.blimpFlags = self.bot.blimpFlags | FLAGS_VOLTAGE_OVERRIDE_BIT
+            self.voltageOverrideLabel.set_text("o");
+            self.bot.immediateUpdate = True
 
     def doDisableOrEnable(self, value):
         if self.bot.connectionState != bleBot.DISABLED:
@@ -400,21 +407,21 @@ class bleBot():
             self.gui.voltageLabel.set_text("{:.2f}v ".format(self.batteryVoltage))
 
             # Match the voltage reading color to the report of low voltage.
-            if (self.returnStatus & 0x01):
+            if (self.returnStatus & 0x02):
+                if (self.gui.voltageLabel.style.background != CYAN):
+                    self.gui.voltageLabel.style.background = CYAN;                        
+            elif (self.returnStatus & 0x01):
                 if (self.gui.voltageLabel.style.background != RED):
                     if DEBUG_VOLTAGE:
                         sessionLen = int(curTime - self.batterySessionStart)
                         print "{:s} transitioned to LOW VOLTAGE mode ({:f}) - {:02d}m:{:02d}s session".format(self.ble_adr, self.batteryVoltage, int(sessionLen / 60), sessionLen % 60)
-                    self.gui.voltageOverrideButton.disabled = False
                     self.gui.voltageLabel.style.background = RED;
-                        
             elif (self.batteryVoltage < 3.0):
                 if (self.gui.voltageLabel.style.background != YELLOW):
                     if DEBUG_VOLTAGE:
                         if self.gui.voltageLabel.style.background == RED:
                             self.batterySessionStart = curTime
                         print "{:s} voltage below 3.0 but low voltage mode not yet triggered ({:f})".format(self.ble_adr, self.batteryVoltage)
-                    self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = YELLOW;
 
             else:
@@ -423,7 +430,6 @@ class bleBot():
                         if self.gui.voltageLabel.style.background == RED:
                             self.batterySessionStart = curTime
                         print "{:s} voltage mode returned to NORMAL ({:f})".format(self.ble_adr, self.batteryVoltage)
-                    self.gui.voltageOverrideButton.disabled = True
                     self.gui.voltageLabel.style.background = GREEN;
                 
             # Give us debug info.

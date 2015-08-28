@@ -27,7 +27,7 @@ DEBUG_CONTROLLERS = True # Debug controller configurations.
 DEBUG_MODE_CHANGE = False # Debug mode changes.
 
 # Connection Constants
-PROTOCOL_VERSION = 2         # Current protocol version; should match rfduino.
+PROTOCOL_VERSION = 3         # Current protocol version; should match rfduino.
 TRANSMISSION_TIMEOUT  = 0.75 # Send an update if we haven't transmitted
                              # in this period (s).
 MIN_TRANSMIT_INTERVAL = 0.1  # Don't transmit more than once in this
@@ -80,6 +80,7 @@ FLAGS_LEFT_TRIGGER_BIT = 0x04
 FLAGS_RIGHT_TRIGGER_BIT = 0x20
 FLAGS_LOCK_IGNITER_BIT = 0x01
 FLAGS_LOCK_MOTORS_BIT = 0x02
+FLAGS_VOLTAGE_OVERRIDE_BIT = 0x10
 
 
 # Controller templates

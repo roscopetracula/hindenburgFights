@@ -44,7 +44,7 @@ fit in a 20-byte BLE packet.
   M = Motor Lock
   X = Igniter Lock
 04....: Reset
-05xx..: Low Voltage Override (x: 00 = off; 01 = on)
+05xx..: [DEPRECATED] Low Voltage Override (x: 00 = off; 01 = on)
 06TTTTUUUUFFFFNNNNRRRRXXXX
   T = Connection Timeout (ms)
   U = Default Update Interval (ms)
@@ -73,7 +73,9 @@ Message length depends on content.
     motor controller documentation for fault bits.
   i = igniter state (00 = off, 01 = on)
   t = blimp trigger state (00 = off, 01 = on)
-  f = flags bitfield (currently 01 is low voltage mode)
+  f = flags bitfield
+    01: low voltage
+    02: voltage is currently overridden
   v = current voltage (2-byte unsigned integer)
 
 02mmvv: Fault on motor m with fault bitfield vv.

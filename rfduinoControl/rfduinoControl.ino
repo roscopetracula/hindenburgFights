@@ -33,7 +33,7 @@
 #define MOTOR3 0x61
 #define CONTROL 0x00
 #define FAULT 0x01
-#define PROTOCOL_VERSION 2
+#define PROTOCOL_VERSION 3
 #define V_SET 0x3f // 3f = 5.06, or ~20v max output.
 
 #define MOTOR_FAULT_FAULT 0x01
@@ -85,11 +85,12 @@
 #define TRIGGER_PIN IF_EXPANDER_ELSE(2,PRE_EXP_TRIGGER_PIN)
 
 // Controller trigger bits
-#define CTRL_BIT_LEFT_TRIGGER    0x04
-#define CTRL_BIT_RIGHT_TRIGGER   0x20
-#define CTRL_BIT_IGNITER         0x08
-#define CTRL_BIT_LOCK_MOTORS     0x02
-#define CTRL_BIT_LOCK_IGNITER    0x01
+#define CTRL_BIT_LEFT_TRIGGER     0x04
+#define CTRL_BIT_RIGHT_TRIGGER    0x20
+#define CTRL_BIT_IGNITER          0x08
+#define CTRL_BIT_VOLTAGE_OVERRIDE 0x10
+#define CTRL_BIT_LOCK_MOTORS      0x02
+#define CTRL_BIT_LOCK_IGNITER     0x01
 
 // Remote-configurable configuration data
 #define NUM_CONFIGS 6
@@ -129,7 +130,6 @@ bool voltageIsLow = false;
 #define TIME_NEVER 0xffff
 unsigned long voltageLowStartTime = TIME_NEVER; /* the time at which the battery voltage went below the threshold, or NEVER if it is over the threshold. */
 bool ignoreBatteryVoltage = false; /* Ignore the battery voltage; useful for testing on USB power, which always reads as low. */
-bool overrideBatteryVoltage = false; /* Flag set asynchronously. */
 unsigned long motorFaultModeStart[3] = {TIME_NEVER, TIME_NEVER, TIME_NEVER}; /* the time at which the fault cool-off state started for a certain motor, or TIME_NEVER for normal operation */
 bool expanderPresent = 0; // auto detect
 uint8_t expanderOutput = 0; // default state = all output pins low
@@ -393,14 +393,17 @@ float getBatteryVoltage() {
 
 float checkBatteryVoltage(unsigned long curTime) {
   // If the override flag has been set, go back to running.
-  if (overrideBatteryVoltage) {
+  if ((curControlFlags & CTRL_BIT_VOLTAGE_OVERRIDE) && !ignoreBatteryVoltage) {
     // Disable low voltage detection, reset voltage state, and
     // make sure we don't have a stored interrupt.
-    overrideBatteryVoltage = false;
     ignoreBatteryVoltage = true;
     voltageIsLow = false;
     voltageLowStartTime = TIME_NEVER;
     triggerInterruptCalled = false;
+    fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
+  } else if (!(curControlFlags & CTRL_BIT_VOLTAGE_OVERRIDE) && ignoreBatteryVoltage) {
+    // Override cancelled.  Simply stop ignoring and proceed as usual.
+    ignoreBatteryVoltage = false;
     fastUpdate(UPDATE_INTERVAL_IMMEDIATE);
   }
 
@@ -610,7 +613,8 @@ void loop()
   // Check if it's time to send an update.
   if (loopMillis - lastUpdateMillis >= nextUpdateTime) {
     float curTemp = RFduino_temperature(FAHRENHEIT);
-    byte statusFlags = (voltageIsLow ? RETURN_STATUS_LOW_VOLTAGE : 0);
+    byte statusFlags = (voltageIsLow ? RETURN_STATUS_LOW_VOLTAGE : 0) |
+                       (curControlFlags & CTRL_BIT_VOLTAGE_OVERRIDE ? RETURN_STATUS_VOLTAGE_OVERRIDE : 0);
     unsigned short batteryVoltageX100 = (100.0 * batteryVoltage); // convert value to hundredths of a volt
     int bufLen = 1 + sizeof(curRSSI) + sizeof(curTemp) + 6 + sizeof(batteryVoltageX100);
     char buf[bufLen];
@@ -733,13 +737,6 @@ void RFduinoBLE_onReceive(char *data, int len) {
     } else if (cmdPtr[0] == 0x04) {
       RFduino_systemReset();
       cmdPtr += 3; // Gratuituous.
-    } else if (cmdPtr[0] == 0x05) {
-      if (cmdPtr[1] == 0x01) {
-        overrideBatteryVoltage = true;
-      } else {
-        bleSendString("voltage override canceled but not implemented");
-      }
-      cmdPtr += 3;
     } else if (cmdPtr[0] == 0x06) {
       cmdPtr++;
       for (int i=0; configPointers[i] != NULL; i++) {
