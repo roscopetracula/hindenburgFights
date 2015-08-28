@@ -23,7 +23,6 @@ class blimpState:
         
     @staticmethod
     def getState(blimpAddr):
-        print "checking state {:s}".format(blimpAddr)
         try:
             return blimpState.allStates[blimpAddr]
         except:
