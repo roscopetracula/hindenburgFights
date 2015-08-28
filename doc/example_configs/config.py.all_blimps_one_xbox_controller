@@ -73,7 +73,7 @@ CONTROLLERS = [
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
         'igniterButton':3,
-        'joystick': 1,
+        'joystick': 0,
     },
     {
         'type': XBOX,
