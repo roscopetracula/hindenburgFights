@@ -12,7 +12,7 @@ DEBUG_LOG_FILE = "blimpControl.log"
 PERSIST_FILE = "blimpControl.shelve"
 
 # Debug Flags
-DEBUG_SCAN = False        # Debug blimp scanning.
+DEBUG_SCAN = True        # Debug blimp scanning.
 DEBUG_TX = False          # Print debug messages for transmissions.
 DEBUG_RX = True           # Print debug messages for generic received
                           # text.
@@ -36,6 +36,9 @@ MAX_CONNECT_TIME = 1.0       # Maximum time (s) to spend on a
                              # connection attempt before timing out.
 BLIMP_MISSING_TIME  = 1.0    # Time (s) without an update before a blimp is marked missing.
 
+
+# Other play constants
+IGNITER_MOTOR_SCALING = 0.5 # Amount to scale motor power by when igniter is manually triggers (by keyboard or joystick).
 
 # Controller Constants
 XBOX = 1
@@ -95,7 +98,7 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
     },
     {
 	'name': "Default-Inverted",
@@ -107,7 +110,7 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
     },
     {
 	'name': "Right-Focused",
@@ -119,7 +122,7 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
     },
     {
 	'name': "Right-Focused Inverted",
@@ -131,7 +134,7 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
     },
     {
 	'name': "Triggers",
@@ -143,7 +146,7 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
     },
     {
 	'name': "Triggers-Inverted",
@@ -155,6 +158,18 @@ CONTROLLER_TEMPLATES = [
         },
 	'leftTriggerAxis': 2,
         'rightTriggerAxis': 5,
-        'igniterButton':3,
+        'igniterButton':[3,4,5],
+    },
+    {
+	'name': "TEST",
+	'char_name': "!",
+        'orientation': {
+            "f_b": (0, 1, 1.0),
+            "r_l": (1, 3, 0.75),
+            "u_d": (2, 4, 0.75),
+        },
+	'leftTriggerAxis': 2,
+        'rightTriggerAxis': 5,
+        'igniterButton':[3,4,5],
     },
 ]

@@ -75,7 +75,7 @@ class bleBotGui():
         # Add the heading.
         self.frame.tr()
         self.timeLabel = gui.Label("00:00")
-        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, 0, O, 0))
+        self.frame.td(gui.Label("{:s}".format(self.bot.name)), colspan=6, style=makeBorder(O, O, O, 0))
         #self.frame.tr()
         #self.frame.td(gui.Label("{:s}".format(self.bot.ble_adr)), colspan=6, style=makeBorder(O, O, 0, 0))
         self.frame.tr()

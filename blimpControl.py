@@ -32,6 +32,7 @@ def doQuit(value = None):
     blimpTracker.logGlobalEvent("stop")
     blimpTracker.close()
     pygame.quit()
+    os.system("killall -q bluepy-helper")
     sys.exit()
 
 def doDisableAll(value = None):
@@ -450,10 +451,34 @@ while True:
             
         elif (event.type == KEYDOWN and event.key == pygame.K_RETURN ):
             guiModeGroup.value = "Run"
+            # Manually call the mode change callback in case we had
+            # manually switched the state of a motor/ingiter lock.
+            doModeChange(guiModeGroup)
+
+        elif (event.type == KEYDOWN and event.key == pygame.K_BACKSLASH ):
+            guiModeGroup.value = "No Fire"
+            # Manually call the mode change callback in case we had
+            # manually switched the state of a motor/ingiter lock.
+            doModeChange(guiModeGroup)
 
         elif (event.type == KEYDOWN and event.key == pygame.K_SPACE):
             guiModeGroup.value = "Lockdown"
+            # Manually call the mode change callback in case we had
+            # manually switched the state of a motor/ingiter lock.
+            doModeChange(guiModeGroup)
             
+        elif (event.type == KEYDOWN and event.key == pygame.K_BACKSPACE):
+            for controller in controllers:
+                if not controller.forcedIgniter:
+                    controller.bleBlimp.immmediateUpdate = True
+                    controller.forcedIgniter = True
+                
+        elif (event.type == KEYUP and event.key == pygame.K_BACKSPACE):
+            for controller in controllers:
+                if controller.forcedIgniter:
+                    controller.bleBlimp.immmediateUpdate = True
+                    controller.forcedIgniter = False
+
         elif (event.type == KEYDOWN or event.type == KEYUP):
             for controller in controllers:
                 if isinstance(controller, KeyboardController) and \

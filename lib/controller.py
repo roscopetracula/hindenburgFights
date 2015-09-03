@@ -60,16 +60,27 @@ def create_controller(cfg, doAppGuiCallback):
                 raise
             else:
                 raise
-
-        controller = XboxController(
-            ble_control,
-            cfg['orientation'],
-            cfg['leftTriggerAxis'],
-            cfg['rightTriggerAxis'],
-            cfg['igniterButton'],
-            joystick
-        )
-
+        try:
+            controller = XboxController(
+                ble_control,
+                cfg['orientation'],
+                cfg['leftTriggerAxis'],
+                cfg['rightTriggerAxis'],
+                cfg['igniterButton'],
+                joystick
+            )
+        except:
+            template = CONTROLLER_TEMPLATES[0]
+            controller = XboxController(
+                ble_control,
+                template['orientation'],
+                template['leftTriggerAxis'],
+                template['rightTriggerAxis'],
+                template['igniterButton'],
+                joystick
+            )
+            controller.curTemplate = 0
+            
     if ADMIN_CONTROLLER:
         if ADMIN_CONTROLLER['type'] == KEYBOARD:
             controller.otherController = KeyboardController(
@@ -88,15 +99,27 @@ def create_controller(cfg, doAppGuiCallback):
                     raise
                 else:
                     raise
-                
-            controller.otherController = XboxController(
-                ble_control,
-                ADMIN_CONTROLLER['orientation'],
-                ADMIN_CONTROLLER['leftTriggerAxis'],
-                ADMIN_CONTROLLER['rightTriggerAxis'],
-                ADMIN_CONTROLLER['igniterButton'],
-                joystick
-            )
+
+            try:
+                controller.otherController = XboxController(
+                    ble_control,
+                    ADMIN_CONTROLLER['orientation'],
+                    ADMIN_CONTROLLER['leftTriggerAxis'],
+                    ADMIN_CONTROLLER['rightTriggerAxis'],
+                    ADMIN_CONTROLLER['igniterButton'],
+                    joystick
+                )
+            except:
+                template = CONTROLLER_TEMPLATES[0]
+                controller.otherController = XboxController(
+                    ble_control,
+                    template['orientation'],
+                    template['leftTriggerAxis'],
+                    template['rightTriggerAxis'],
+                    template['igniterButton'],
+                    joystick
+                )
+                controller.otherController.curTemplate = 0
             controller.otherController.isAdmin = True
 
         # Loop the admin controller back to this one.
@@ -220,11 +243,31 @@ class XboxController(Controller):
         self.leftTriggerAxis = leftTriggerAxis
         self.rightTriggerAxis = rightTriggerAxis
         self.igniterButton = igniterButton
-
+        self.forcedIgniter = False
+        
     def undeadzone(self,x):
         return max(0,min((abs(x)-self.deadzone)/(1-self.deadzone),1))
 
     def handleXbox(self):
+        # Start with current flags with the joystick bits turned off.
+        blimpFlags = self.bleBlimp.getBlimpFlags() & (0xff ^ (FLAGS_IGNITER_BIT | FLAGS_LEFT_TRIGGER_BIT | FLAGS_RIGHT_TRIGGER_BIT))
+
+        # Note that igniter forcing only currently works for xbox
+        # controllers.  Also note the ugliness of checking the force
+        # flag inside the for loop.
+        triggerIsOn = False
+        for button in self.igniterButton:
+            if self.joystick.get_button(button) or self.forcedIgniter:
+                blimpFlags = blimpFlags | FLAGS_IGNITER_BIT
+                triggerIsOn = True
+            
+	if self.joystick.get_axis( self.leftTriggerAxis) > 0:
+            blimpFlags = blimpFlags | FLAGS_LEFT_TRIGGER_BIT
+
+	if self.joystick.get_axis( self.rightTriggerAxis) > 0:
+            blimpFlags = blimpFlags | FLAGS_RIGHT_TRIGGER_BIT
+            
+        # Handle axes.
         nowAxisState = ["00","00","00","00"]
         for axis in self.axisMap.items():
             # axis[1][0]  --motorIndex
@@ -237,6 +280,13 @@ class XboxController(Controller):
                 #print "{:f} {:f} {:f}".format(self.joystick.get_axis(5), self.joystick.get_axis(2), axisVal)
             else:
                 axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
+
+            # Reduce motor power while manually triggering igniter from keyboard or joystick.
+            if triggerIsOn:
+                if axisVal <> 0:
+                    print "axisVal on {:d} reduced from {:f} to {:f}".format(axis[1][0], axisVal, axisVal*IGNITER_MOTOR_SCALING)
+                axisVal *= IGNITER_MOTOR_SCALING
+
             if axisVal > self.deadzone:
                 motorDirection = "01"
                 motorSpeed = numToMotorCode(self.undeadzone(axisVal))
@@ -248,18 +298,6 @@ class XboxController(Controller):
                 motorSpeed = "00"
             nowAxisState[axis[1][0]]=motorSpeed
             self.bleBlimp.setMotorState(axis[1][0], motorDirection, motorSpeed)
-
-        # Start with current flags with the joystick bits turned off.
-        blimpFlags = self.bleBlimp.getBlimpFlags() & (0xff ^ (FLAGS_IGNITER_BIT | FLAGS_LEFT_TRIGGER_BIT | FLAGS_RIGHT_TRIGGER_BIT))
-
-        if self.joystick.get_button( self.igniterButton):
-            blimpFlags = blimpFlags | FLAGS_IGNITER_BIT
-
-	if self.joystick.get_axis( self.leftTriggerAxis) > 0:
-            blimpFlags = blimpFlags | FLAGS_LEFT_TRIGGER_BIT
-
-	if self.joystick.get_axis( self.rightTriggerAxis) > 0:
-            blimpFlags = blimpFlags | FLAGS_RIGHT_TRIGGER_BIT
 
  	hexStr = hex(blimpFlags)[-2:]
         hexStr = "0"+hexStr[1] if hexStr[0]=="x" else hexStr
