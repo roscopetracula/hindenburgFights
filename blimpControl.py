@@ -25,14 +25,20 @@ from lib.controller import (
     Controller
 )
 
-def doQuit(value = None):
+def shutdownBlimps():
+    blimpTracker.logGlobalEvent("stop")
     for controller in controllers:
         controller.cleanup()
-        
-    blimpTracker.logGlobalEvent("stop")
     blimpTracker.close()
+    while len(hcitoolScanners) > 0:
+        scanner = hcitoolScanners.keys()[0]
+        hcitoolScanners[scanner].close()
+        del hcitoolScanners[scanner]
     pygame.quit()
     os.system("killall -q bluepy-helper")
+    
+def doQuit(value = None):
+    shutdownBlimps()
     sys.exit()
 
 def doDisableAll(value = None):
@@ -48,9 +54,11 @@ def doResetAll(value = None):
         controller.bleBlimp.reset()
 
 def doRestart():
+    shutdownBlimps()
     os.execvp(sys.argv[0], sys.argv)
 
 def doModeChange(guiModeGroup):
+    blimpTracker.setPlayMode(guiModeGroup.value)
     if guiModeGroup.value == "Run":
         for controller in controllers:
             controller.bleBlimp.setLocks(False, False)
@@ -173,17 +181,36 @@ if args.default_enabled:
 elif args.default_disabled:
     bleBot.DEFAULT_ENABLED = False
 
+# Get the last stored mode if present.
+if (not args.default_mode_run and
+    not args.default_mode_lockdown and
+    not args.default_mode_nofire):
+    storedMode = blimpTracker.getPlayMode()
+    if storedMode == "Run":
+        args.default_mode_run = True
+    elif storedMode == "Lockdown":
+        args.default_mode_lockdown = True
+    else:
+        args.default_mode_nofire = True
+
 # Set the mode defaults.
 if args.default_mode_run:
     bleBot.DEFAULT_IGNITER_LOCK = False
     bleBot.DEFAULT_MOTORS_LOCK = False
+    blimpTracker.setPlayMode("Run")
 elif args.default_mode_lockdown:
     bleBot.DEFAULT_IGNITER_LOCK = True
     bleBot.DEFAULT_MOTORS_LOCK = True
-else:
+    blimpTracker.setPlayMode("Lockdown")
+elif args.default_mode_nofire:
     bleBot.DEFAULT_IGNITER_LOCK = True
     bleBot.DEFAULT_MOTORS_LOCK = False
-
+    blimpTracker.setPlayMode("No Fire")
+else:
+    bleBot.DEFAULT_IGNITER_LOCK = True
+    blimpTracker.setPlayMode("No Fire")
+    bleBot.DEFAULT_MOTORS_LOCK = False    
+    
 # Discover bluetooth devices for scanning.
 bleDeviceNames = []
 hcitoolScanners = {}
@@ -333,6 +360,8 @@ pygame.display.set_caption(GAME_NAME)
 guiApp.init(guiAppTable)
 
 lastDisplayUpdateTime = 0
+
+print "Battle Blimps ready to go!"
 
 while True:
     foundConnecting = False

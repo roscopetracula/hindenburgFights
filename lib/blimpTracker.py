@@ -6,7 +6,7 @@ class blimpState:
     allStates = None
     
     def __init__(self, blimpAddr):
-        self.lastGoodVoltage = time.time()
+        self.lastGoodVoltage = 0
         self.lastBadVoltage = None
         self.lastVoltageWasGood = True
         self.curConnectionState = None
@@ -27,7 +27,7 @@ class blimpState:
     def sync():
         if blimpState.allStates:
             blimpState.allStates.sync()
-        
+
     @staticmethod
     def getState(blimpAddr):
         try:
@@ -52,6 +52,19 @@ class blimpTracker:
                 blimpTracker.loggerFile = open(DEBUG_LOG_FILE, "a")
             blimpTracker.logOpenAttempted = True
 
+    @staticmethod
+    def getPlayMode():
+        blimpState.init()
+        try:
+            return blimpState.allStates['mode']
+        except:
+            return None
+    
+    @staticmethod
+    def setPlayMode(newMode):
+        blimpState.init()
+        blimpState.allStates['mode'] = newMode
+    
     @staticmethod
     def logGlobalEvent(logEvent):
         blimpTracker.init()
@@ -96,6 +109,8 @@ class blimpTracker:
         
         if logBlimp.connectionState == 0:
             if logState.lastVoltageWasGood:
+                if logState.lastGoodVoltage == 0:
+                    logState.lastGoodVoltage = time.time()
                 logState.lastUptime = time.time() - logState.lastGoodVoltage
             else:
                 logState.lastUptime = logState.lastBadVoltage - logState.lastGoodVoltage

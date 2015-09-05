@@ -12,7 +12,7 @@ DEBUG_LOG_FILE = "blimpControl.log"
 PERSIST_FILE = "blimpControl.shelve"
 
 # Debug Flags
-DEBUG_SCAN = True        # Debug blimp scanning.
+DEBUG_SCAN = False        # Debug blimp scanning.
 DEBUG_TX = False          # Print debug messages for transmissions.
 DEBUG_RX = True           # Print debug messages for generic received
                           # text.
@@ -23,8 +23,9 @@ DEBUG_VOLTAGE = True      # Print debug messages for blimp voltage
                           # status.
 DEBUG_TRIGGER = False     # Print debug messages of trigger on/off.
 DEBUG_IGNITER = False     # Print debug messages of igniter on/off.
-DEBUG_CONTROLLERS = True # Debug controller configurations.
+DEBUG_CONTROLLERS = False # Debug controller configurations.
 DEBUG_MODE_CHANGE = False # Debug mode changes.
+DEBUG_AXES = False        # Debug various axis information.
 
 # Connection Constants
 PROTOCOL_VERSION = 3         # Current protocol version; should match rfduino.

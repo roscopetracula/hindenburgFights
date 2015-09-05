@@ -277,13 +277,14 @@ class XboxController(Controller):
             # Hack to deal with triggers
             if axis[1][1] == 5:
                 axisVal = (self.joystick.get_axis(5) - self.joystick.get_axis(2)) * axis[1][2] / 2.0
-                #print "{:f} {:f} {:f}".format(self.joystick.get_axis(5), self.joystick.get_axis(2), axisVal)
+                if DEBUG_AXES:
+                    print "{:f} {:f} {:f}".format(self.joystick.get_axis(5), self.joystick.get_axis(2), axisVal)
             else:
                 axisVal = self.joystick.get_axis( axis[1][1] ) * axis[1][2]
 
             # Reduce motor power while manually triggering igniter from keyboard or joystick.
             if triggerIsOn:
-                if axisVal <> 0:
+                if axisVal <> 0 and DEBUG_AXES:
                     print "axisVal on {:d} reduced from {:f} to {:f}".format(axis[1][0], axisVal, axisVal*IGNITER_MOTOR_SCALING)
                 axisVal *= IGNITER_MOTOR_SCALING
 
